@@ -1,0 +1,195 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+###Подключаем требуемые пакеты
+```{r}
+
+library(igraph)
+library(pagoda2)
+library(ggplot2)
+
+```
+###Считываем данные и строим граф
+```{r}
+
+path_floder <- paste0(getwd(), "/filtered_gene_bc_matrices/GRCh38")
+
+load_matrix <- pagoda2::read.10x.matrices(path_floder)
+pagoda_data <- pagoda2::basicP2proc(load_matrix)
+
+```
+###Смотрим данные
+```{r}
+
+head(pagoda_data$reductions$PCA[,1:6], 5)
+
+```
+```{r}
+
+correlation_matrix <- cor(t(pagoda_data$reductions$PCA))
+head(correlation_matrix[,1:3], 5)
+
+```
+```{r}
+
+my_plot <- function(embeddings, clusters=NULL, size=0.3, alpha=0.5) {
+  ggplot() + 
+    geom_point(aes(x = embeddings[,1], y = embeddings[,2], color=clusters), size=size, alpha=alpha)
+}
+
+my_plot(pagoda_data$embeddings$PCA$largeVis, pagoda_data$clusters$PCA$infomap)
+my_plot(pagoda_data$embeddings$PCA$largeVis, pagoda_data$clusters$PCA$multilevel)
+my_plot(pagoda_data$embeddings$PCA$tSNE, pagoda_data$clusters$PCA$infomap)
+my_plot(pagoda_data$embeddings$PCA$tSNE, pagoda_data$clusters$PCA$multilevel)
+
+```
+эта функция делает то же самое, что и basicP2proc, только более конфигурируема
+```{r}
+
+GetPagoda <- function (cm, n.cores = 30, clustering.type = "infomap", embeding.type = "tSNE", 
+  tsne.iter.num = 1000, verbose = TRUE, n.pcs = 100, distance = "cosine", 
+  trim = 5, n.odgenes = 1000,  ...) 
+{
+  r <- pagoda2::Pagoda2$new(cm, modelType = "plain", trim = trim, 
+    n.cores = n.cores, verbose = verbose, ...)
+  r$adjustVariance(plot = F, do.par = F, gam.k = 10, verbose = verbose)
+  r$calculatePcaReduction(nPcs = n.pcs, n.odgenes = n.odgenes, maxit = 1000)
+
+  r$makeKnnGraph(k = 30, type = "PCA", center = T, distance = "cosine", 
+    weight.type = "none", verbose = verbose)
+  if (clustering.type == "infomap") {
+    r$getKnnClusters(method = igraph::infomap.community, type = "PCA", name = "infomap")
+  } else if (clustering.type == "multilevel") {
+    r$getKnnClusters(method = igraph::multilevel.community, type = "PCA", name = "multilevel")
+  } else stop("Unknown clustering  type")
+
+  if ("largeVis" %in% embeding.type) {
+    r$getEmbedding(type = "PCA", embeddingType = "largeVis")
+  }
+  
+  if ("tSNE" %in% embeding.type) {
+    r$getEmbedding(type = "PCA", perplexity = 30, embeddingType = "tSNE", 
+                   max_iter = tsne.iter.num)
+  }
+
+  return(r)
+}
+
+```
+###Выделяем вершины в кластерах и окрестностях кластеров, после чего строим граф для окрестности
+```{r}
+
+all_clusters <- pagoda_data$clusters$PCA$multilevel
+
+cluster_neighborhood <- function(index, order=1, mindist=0) {
+  tmp_list <- list()
+  # выбираем кластер
+  cluster <- names(all_clusters[all_clusters==index])
+  # составляем список из всех соседей для каждой вершины кластера
+  for (item in neighborhood(pagoda_data$graphs$PCA, nodes = cluster, 
+                            order=order, mindist=mindist)) {
+    # знаю что так делать медленно, но как по другому?
+    tmp_list <- c(tmp_list, item)
+  }
+  # удаляем повторяющиеся вершины
+  tmp_list <- names(tmp_list[!duplicated(tmp_list)])
+  
+  list(cluster=cluster, expand_cluster=tmp_list, add_vertex=tmp_list[!(tmp_list %in% cluster)])
+}
+
+clusters_name <- lapply(levels(all_clusters), cluster_neighborhood)
+
+
+create_graph <- function(index) {
+  pagoda2::basicP2proc(load_matrix[,clusters_name[[index]]$expand_cluster])
+}
+
+clusters_pagoda_data <- lapply(1:length(levels(all_clusters)), create_graph)
+
+```
+### Корректировка графа 
+```{r}
+
+corrected_graph <- delete_vertices(pagoda_data$graphs$PCA,
+                                   clusters_name[[1]]$cluster)
+
+corrected_graph <- union(corrected_graph, clusters_pagoda_data[[1]]$graphs$PCA)
+# здесь должно сразу идти отсечение лишних связей
+
+
+
+#for (i in 1:length(all_clusters)) {
+#  corrected_graph <- delete_vertices(pagoda_data$graphs$PCA,
+#                                   clusters_name[[1]]$cluster)
+#  corrected_graph <- union(corrected_graph, clusters_pagoda_data[[i]]$graphs$PCA)
+#  # здесь должно сразу идти отсечение лишних связей
+#}
+
+```
+```{r}
+
+embedGraph <- function(graph, M=1, gamma=1, alpha=0.1, sgd_batches=1e8,
+                       seed=1, verbose=TRUE, n.cores=1) {
+  wij <- igraph::as_adj(graph, attr='weight');
+  coords <- largeVis::projectKNNs(wij = wij, dim=2, verbose = verbose,
+                                  sgd_batches = sgd_batches,gamma=gamma, M=M,
+                                  seed=seed, alpha=alpha, rho=1, threads=n.cores)
+  colnames(coords) <- igraph::V(graph)$name
+  return(t(coords))
+}
+
+embeddings_corrected_graph <- embedGraph(corrected_graph, n.cores=2)
+my_plot(embeddings_corrected_graph, all_clusters)
+
+```
+```{r}
+
+
+```
+```{r}
+```
+```{r}
+```
+```{r}
+
+```
+```{r}
+
+
+```
+### Зона тестирования функциональных возможностей RRRRrrrr...
+```{r}
+star_g <- graph.star(9, mode = 'out',center = 7)
+ring_g <- graph.ring(6, directed = TRUE)
+
+
+# names(star_g) <- paste0("v", as.character(1:9))
+# names(ring_g) <- paste0("v", as.character(1:6))
+
+plot.igraph(star_g)
+plot.igraph(ring_g)
+
+embeddings_star_g <- embedGraph(star_g, n.cores=2)
+my_plot(embeddings_star_g)
+embeddings_ring_g <- embedGraph(ring_g, n.cores=2)
+my_plot(embeddings_ring_g)
+
+union_g <- union(star_g, ring_g)
+
+plot.igraph(union_g)
+
+embeddings_union_g <- embedGraph(ring_g, n.cores=2)
+my_plot(embeddings_union_g)
+
+#new_union_g <- delete_vertices(union_g, c('1', '2'))
+#plot.igraph(new_union_g)
+
+```
+```{r}
+
+```
+```{r}
+
+```
