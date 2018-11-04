@@ -14,7 +14,7 @@ library(ggplot2)
 ###Считываем данные и строим граф
 ```{r}
 
-path_floder <- paste0(getwd(), "/filtered_gene_bc_matrices/GRCh38")
+path_floder <- paste0("../data/filtered_gene_bc_matrices/GRCh38")
 
 load_matrix <- pagoda2::read.10x.matrices(path_floder)
 pagoda_data <- pagoda2::basicP2proc(load_matrix)
