@@ -14,7 +14,7 @@ library(ggplot2)
 ###Считываем данные и строим граф
 ```{r}
 
-path_floder <- paste0("../data/filtered_gene_bc_matrices/GRCh38")
+path_floder <- paste0(getwd(), "/../data/filtered_gene_bc_matrices/GRCh38")
 
 load_matrix <- pagoda2::read.10x.matrices(path_floder)
 pagoda_data <- pagoda2::basicP2proc(load_matrix)
@@ -34,15 +34,20 @@ head(correlation_matrix[,1:3], 5)
 ```
 ```{r}
 
-my_plot <- function(embeddings, clusters=NULL, size=0.3, alpha=0.5) {
+plot_pagoda <- function(data, embedding_name, cluster_name=NULL, size=0.3, alpha=0.5) {
+  
+  embeddings <- data$embeddings$PCA[[embedding_name]]
+  clusters <- data$clusters$PCA[[cluster_name]]
+  
   ggplot() + 
-    geom_point(aes(x = embeddings[,1], y = embeddings[,2], color=clusters), size=size, alpha=alpha)
+    geom_point(aes(x = embeddings[,1], y = embeddings[,2], color=clusters),
+               size=size,alpha=alpha)
 }
 
-my_plot(pagoda_data$embeddings$PCA$largeVis, pagoda_data$clusters$PCA$infomap)
-my_plot(pagoda_data$embeddings$PCA$largeVis, pagoda_data$clusters$PCA$multilevel)
-my_plot(pagoda_data$embeddings$PCA$tSNE, pagoda_data$clusters$PCA$infomap)
-my_plot(pagoda_data$embeddings$PCA$tSNE, pagoda_data$clusters$PCA$multilevel)
+plot_pagoda(pagoda_data, "largeVis", "infomap")
+plot_pagoda(pagoda_data, "largeVis", "multilevel")
+plot_pagoda(pagoda_data, "tSNE", "infomap")
+plot_pagoda(pagoda_data, "tSNE", "multilevel")
 
 ```
 эта функция делает то же самое, что и basicP2proc, только более конфигурируема
