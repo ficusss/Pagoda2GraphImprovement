@@ -17,6 +17,7 @@ library(ggplot2)
 path_floder <- paste0(getwd(), "/../data/filtered_gene_bc_matrices/GRCh38")
 
 load_matrix <- pagoda2::read.10x.matrices(path_floder)
+load_matrix <- load_matrix[!duplicated(rownames(load_matrix)),]
 pagoda_data <- pagoda2::basicP2proc(load_matrix)
 
 ```
@@ -50,7 +51,7 @@ plot_pagoda(pagoda_data, "tSNE", "infomap")
 plot_pagoda(pagoda_data, "tSNE", "multilevel")
 
 ```
-эта функция делает то же самое, что и basicP2proc, только более конфигурируема
+Эта функция делает то же самое, что и basicP2proc, только более конфигурируема
 ```{r}
 
 GetPagoda <- function (cm, n.cores = 30, clustering.type = "infomap", embeding.type = "tSNE", 
@@ -108,7 +109,8 @@ clusters_name <- lapply(levels(all_clusters), cluster_neighborhood)
 
 
 create_graph <- function(index) {
-  pagoda2::basicP2proc(load_matrix[,clusters_name[[index]]$expand_cluster])
+  # pagoda2::basicP2proc(load_matrix[,clusters_name[[index]]$expand_cluster])
+  GetPagoda(load_matrix[,clusters_name[[index]]$expand_cluster], embeding.type = NULL)
 }
 
 clusters_pagoda_data <- lapply(1:length(levels(all_clusters)), create_graph)
@@ -117,22 +119,22 @@ clusters_pagoda_data <- lapply(1:length(levels(all_clusters)), create_graph)
 ### Корректировка графа 
 ```{r}
 
-corrected_graph <- delete_vertices(pagoda_data$graphs$PCA,
-                                   clusters_name[[1]]$cluster)
+UpdateGraph <- function(deleted=FALSE) {
+  corrected_graph <- pagoda_data$graphs$PCA
+  for (i in 1:length(levels(all_clusters))) {
+    if (deleted == TRUE)
+      corrected_graph <- delete_vertices(corrected_graph, clusters_name[[i]]$cluster)
+    corrected_graph <- union(corrected_graph, clusters_pagoda_data[[i]]$graphs$PCA)
+    # здесь должно сразу идти отсечение лишних связей
+  }
+  corrected_graph
+}
 
-corrected_graph <- union(corrected_graph, clusters_pagoda_data[[1]]$graphs$PCA)
-# здесь должно сразу идти отсечение лишних связей
-
-
-
-#for (i in 1:length(all_clusters)) {
-#  corrected_graph <- delete_vertices(pagoda_data$graphs$PCA,
-#                                   clusters_name[[1]]$cluster)
-#  corrected_graph <- union(corrected_graph, clusters_pagoda_data[[i]]$graphs$PCA)
-#  # здесь должно сразу идти отсечение лишних связей
-#}
+corrected_graph <- GetPagoda(igraph::as_adj(UpdateGraph(deleted = FALSE)), embeding.type = NULL)
+corrected_graph_d <- GetPagoda(igraph::as_adj(UpdateGraph(deleted = TRUE)), embeding.type = NULL)
 
 ```
+###Отрировываем измененные графы
 ```{r}
 
 embedGraph <- function(graph, M=1, gamma=1, alpha=0.1, sgd_batches=1e8,
@@ -145,12 +147,19 @@ embedGraph <- function(graph, M=1, gamma=1, alpha=0.1, sgd_batches=1e8,
   return(t(coords))
 }
 
-embeddings_corrected_graph <- embedGraph(corrected_graph, n.cores=2)
-my_plot(embeddings_corrected_graph, all_clusters)
+embeddings_corrected_graph <- embedGraph(corrected_graph$graphs$PCA, n.cores=2)
+embeddings_corrected_graph_d <- embedGraph(corrected_graph_d$graphs$PCA, n.cores=2)
+
+ggplot() + geom_point(
+  aes(x = embeddings_corrected_graph[,1], y = embeddings_corrected_graph[,2], color=all_clusters),
+  size=0.3, alpha=0.5)
+
+ggplot() + geom_point(
+  aes(x = embeddings_corrected_graph_d[,1], y = embeddings_corrected_graph_d[,2], color=all_clusters),
+  size=0.3, alpha=0.5)
 
 ```
 ```{r}
-
 
 ```
 ```{r}
@@ -166,30 +175,6 @@ my_plot(embeddings_corrected_graph, all_clusters)
 ```
 ### Зона тестирования функциональных возможностей RRRRrrrr...
 ```{r}
-star_g <- graph.star(9, mode = 'out',center = 7)
-ring_g <- graph.ring(6, directed = TRUE)
-
-
-# names(star_g) <- paste0("v", as.character(1:9))
-# names(ring_g) <- paste0("v", as.character(1:6))
-
-plot.igraph(star_g)
-plot.igraph(ring_g)
-
-embeddings_star_g <- embedGraph(star_g, n.cores=2)
-my_plot(embeddings_star_g)
-embeddings_ring_g <- embedGraph(ring_g, n.cores=2)
-my_plot(embeddings_ring_g)
-
-union_g <- union(star_g, ring_g)
-
-plot.igraph(union_g)
-
-embeddings_union_g <- embedGraph(ring_g, n.cores=2)
-my_plot(embeddings_union_g)
-
-#new_union_g <- delete_vertices(union_g, c('1', '2'))
-#plot.igraph(new_union_g)
 
 ```
 ```{r}
