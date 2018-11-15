@@ -89,7 +89,7 @@ GetPagoda <- function (cm, n.cores = 30, clustering.type = "infomap", embeding.t
 
 all_clusters <- pagoda_data$clusters$PCA$multilevel
 
-cluster_neighborhood <- function(index, order=1, mindist=0) {
+ClusterNeighborhood <- function(index, order=1, mindist=0) {
   tmp_list <- list()
   # выбираем кластер
   cluster <- names(all_clusters[all_clusters==index])
@@ -105,15 +105,15 @@ cluster_neighborhood <- function(index, order=1, mindist=0) {
   list(cluster=cluster, expand_cluster=tmp_list, add_vertex=tmp_list[!(tmp_list %in% cluster)])
 }
 
-clusters_name <- lapply(levels(all_clusters), cluster_neighborhood)
+clusters_name <- lapply(levels(all_clusters), ClusterNeighborhood)
 
 
-create_graph <- function(index) {
+CreateGraph <- function(index) {
   # pagoda2::basicP2proc(load_matrix[,clusters_name[[index]]$expand_cluster])
   GetPagoda(load_matrix[,clusters_name[[index]]$expand_cluster], embeding.type = NULL)
 }
 
-clusters_pagoda_data <- lapply(1:length(levels(all_clusters)), create_graph)
+clusters_pagoda_data <- lapply(1:length(levels(all_clusters)), CreateGraph)
 
 ```
 ### Корректировка графа 
@@ -137,7 +137,7 @@ corrected_graph_d <- GetPagoda(igraph::as_adj(UpdateGraph(deleted = TRUE)), embe
 ###Отрировываем измененные графы
 ```{r}
 
-embedGraph <- function(graph, M=1, gamma=1, alpha=0.1, sgd_batches=1e8,
+EmbedGraph <- function(graph, M=1, gamma=1, alpha=0.1, sgd_batches=1e8,
                        seed=1, verbose=TRUE, n.cores=1) {
   wij <- igraph::as_adj(graph, attr='weight');
   coords <- largeVis::projectKNNs(wij = wij, dim=2, verbose = verbose,
@@ -147,15 +147,50 @@ embedGraph <- function(graph, M=1, gamma=1, alpha=0.1, sgd_batches=1e8,
   return(t(coords))
 }
 
-embeddings_corrected_graph <- embedGraph(corrected_graph$graphs$PCA, n.cores=2)
-embeddings_corrected_graph_d <- embedGraph(corrected_graph_d$graphs$PCA, n.cores=2)
+```
+```{r}
+
+GetBaseClusters <- function(base_graph, new_graph, cluster_type) {
+  l1 <- base_graph$clusters$PCA[[1]]
+  l2 <- new_graph$clusters$PCA[[1]]
+  assertthat::are_equal(l1, l2)
+  
+  z <- base_graph$clusters$PCA[[cluster_type]]
+  names(z) <- names(base_graph$clusters$PCA[[cluster_type]])
+  
+  base_clusters <- NA
+  for (i in 1:length(z)) {
+    curr_cell <- names(new_graph$graphs$PCA[[i]])
+    base_clusters[i] <- z[curr_cell]
+  }
+  as.factor(base_clusters)
+}
+
+good_clusters_d <- GetBaseClusters(pagoda_data, corrected_graph_d, "multilevel")
+good_clusters <- GetBaseClusters(pagoda_data, corrected_graph, "multilevel")
+
+```
+```{r}
+embeddings_pagoda <- EmbedGraph(pagoda_data$graphs$PCA, n.cores=2,
+                                M=1, gamma=1.1, alpha=0.05, sgd_batches=1e7)
+embeddings_corrected_graph <- EmbedGraph(corrected_graph$graphs$PCA, n.cores=2,
+                                         M=1, gamma=1.1, alpha=0.05, sgd_batches=1e7)
+embeddings_corrected_graph_d <- EmbedGraph(corrected_graph_d$graphs$PCA, n.cores=2,
+                                           M=1, gamma=1.1, alpha=0.05, sgd_batches=1e7)
 
 ggplot() + geom_point(
-  aes(x = embeddings_corrected_graph[,1], y = embeddings_corrected_graph[,2], color=all_clusters),
+  aes(x = embeddings_pagoda[,1], y = embeddings_pagoda[,2],
+      color=all_clusters),
   size=0.3, alpha=0.5)
 
 ggplot() + geom_point(
-  aes(x = embeddings_corrected_graph_d[,1], y = embeddings_corrected_graph_d[,2], color=all_clusters),
+  aes(x = embeddings_corrected_graph[,1], y = embeddings_corrected_graph[,2],
+      color=good_clusters),
+  size=0.3, alpha=0.5)
+
+ggplot() + geom_point(
+  aes(x = embeddings_corrected_graph_d[,1], y = embeddings_corrected_graph_d[,2],
+      color=good_clusters_d),
   size=0.3, alpha=0.5)
 
 ```
@@ -163,15 +198,11 @@ ggplot() + geom_point(
 
 ```
 ```{r}
-```
-```{r}
-```
-```{r}
 
 ```
 ```{r}
-
-
+```
+```{r}
 ```
 ### Зона тестирования функциональных возможностей RRRRrrrr...
 ```{r}
