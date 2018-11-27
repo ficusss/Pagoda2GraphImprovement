@@ -11,6 +11,7 @@ library(pagoda2)
 library(ggplot2)
 
 ```
+
 ###Считываем данные и строим граф
 ```{r}
 
@@ -21,6 +22,7 @@ load_matrix <- load_matrix[!duplicated(rownames(load_matrix)),]
 pagoda_data <- pagoda2::basicP2proc(load_matrix)
 
 ```
+
 ###Смотрим данные
 ```{r}
 
@@ -51,6 +53,7 @@ plot_pagoda(pagoda_data, "tSNE", "infomap")
 plot_pagoda(pagoda_data, "tSNE", "multilevel")
 
 ```
+
 Эта функция делает то же самое, что и basicP2proc, только более конфигурируема
 ```{r}
 
@@ -84,6 +87,7 @@ GetPagoda <- function (cm, n.cores = 30, clustering.type = "infomap", embeding.t
 }
 
 ```
+
 ###Выделяем вершины в кластерах и окрестностях кластеров, после чего строим граф для окрестности
 ```{r}
 
@@ -116,6 +120,31 @@ CreateGraph <- function(index) {
 clusters_pagoda_data <- lapply(1:length(levels(all_clusters)), CreateGraph)
 
 ```
+
+###Находим степень связности кластера с остальным графом
+```{r}
+
+GetDegreeConnectivity <- function(graph, vertex.name) {
+  result <- list()
+  
+  for (v in vertex.name$add_vertex) {
+    count.cluster.vertex <- sum(names(graph[[v]][[1]]) %in% vertex.name$cluster)
+    count.add.vertex <- sum(names(graph[[v]][[1]]) %in% vertex.name$add_vertex)
+    count.other.vertex <- sum(!names(graph[[v]][[1]]) %in% vertex.name$expand_cluster)
+    res <- NULL
+    res[[v]] <- list(
+                rescount.cluster.vertex=count.cluster.vertex,
+                count.add.vertex=count.add.vertex,
+                count.other.vertex=count.other.vertex)
+    result <- c(result, res)
+  }
+  result
+}
+
+vertex.connectivity <- lapply(clusters_name, GetDegreeConnectivity, graph=pagoda_data$graphs$PCA)
+
+```
+
 ### Корректировка графа 
 ```{r}
 
@@ -134,7 +163,8 @@ corrected_graph <- GetPagoda(igraph::as_adj(UpdateGraph(deleted = FALSE)), embed
 corrected_graph_d <- GetPagoda(igraph::as_adj(UpdateGraph(deleted = TRUE)), embeding.type = NULL)
 
 ```
-###Отрировываем измененные графы
+
+###Отрисовываем измененные графы
 ```{r}
 
 EmbedGraph <- function(graph, M=1, gamma=1, alpha=0.1, sgd_batches=1e8,
@@ -148,6 +178,8 @@ EmbedGraph <- function(graph, M=1, gamma=1, alpha=0.1, sgd_batches=1e8,
 }
 
 ```
+
+
 ```{r}
 
 GetBaseClusters <- function(base_graph, new_graph, cluster_type) {
@@ -170,13 +202,15 @@ good_clusters_d <- GetBaseClusters(pagoda_data, corrected_graph_d, "multilevel")
 good_clusters <- GetBaseClusters(pagoda_data, corrected_graph, "multilevel")
 
 ```
+
+
 ```{r}
 embeddings_pagoda <- EmbedGraph(pagoda_data$graphs$PCA, n.cores=2,
-                                M=1, gamma=1.1, alpha=0.05, sgd_batches=1e7)
+                                M=1, gamma=1.1, alpha=0.05, sgd_batches=1e8)
 embeddings_corrected_graph <- EmbedGraph(corrected_graph$graphs$PCA, n.cores=2,
-                                         M=1, gamma=1.1, alpha=0.05, sgd_batches=1e7)
+                                         M=1, gamma=1.1, alpha=0.05, sgd_batches=1e8)
 embeddings_corrected_graph_d <- EmbedGraph(corrected_graph_d$graphs$PCA, n.cores=2,
-                                           M=1, gamma=1.1, alpha=0.05, sgd_batches=1e7)
+                                           M=1, gamma=1.1, alpha=0.05, sgd_batches=1e8)
 
 ggplot() + geom_point(
   aes(x = embeddings_pagoda[,1], y = embeddings_pagoda[,2],
@@ -194,16 +228,25 @@ ggplot() + geom_point(
   size=0.3, alpha=0.5)
 
 ```
+
+
 ```{r}
 
 ```
+
+
 ```{r}
 
 ```
+
+
 ```{r}
 ```
+
+
 ```{r}
 ```
+
 ### Зона тестирования функциональных возможностей RRRRrrrr...
 ```{r}
 
