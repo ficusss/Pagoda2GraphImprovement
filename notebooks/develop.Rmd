@@ -9,6 +9,9 @@ output: html_notebook
 library(igraph)
 library(pagoda2)
 library(ggplot2)
+library(random)
+
+set.seed(2018)
 
 ```
 
@@ -37,20 +40,20 @@ head(correlation_matrix[,1:3], 5)
 ```
 ```{r}
 
-plot_pagoda <- function(data, embedding_name, cluster_name=NULL, size=0.3, alpha=0.5) {
+PlotPagoda <- function(data, embedding.name, cluster.name=NULL, size=0.3, alpha=0.5) {
   
-  embeddings <- data$embeddings$PCA[[embedding_name]]
-  clusters <- data$clusters$PCA[[cluster_name]]
+  embeddings <- data$embeddings$PCA[[embedding.name]]
+  clusters <- data$clusters$PCA[[cluster.name]]
   
   ggplot() + 
     geom_point(aes(x = embeddings[,1], y = embeddings[,2], color=clusters),
                size=size,alpha=alpha)
 }
 
-plot_pagoda(pagoda_data, "largeVis", "infomap")
-plot_pagoda(pagoda_data, "largeVis", "multilevel")
-plot_pagoda(pagoda_data, "tSNE", "infomap")
-plot_pagoda(pagoda_data, "tSNE", "multilevel")
+PlotPagoda(pagoda_data, "largeVis", "infomap")
+PlotPagoda(pagoda_data, "largeVis", "multilevel")
+PlotPagoda(pagoda_data, "tSNE", "infomap")
+PlotPagoda(pagoda_data, "tSNE", "multilevel")
 
 ```
 
@@ -128,43 +131,104 @@ GetDegreeConnectivity <- function(graph, vertex.name) {
   result <- list()
   
   for (v in vertex.name$add_vertex) {
-    count.cluster.vertex <- sum(names(graph[[v]][[1]]) %in% vertex.name$cluster)
-    count.add.vertex <- sum(names(graph[[v]][[1]]) %in% vertex.name$add_vertex)
-    count.other.vertex <- sum(!names(graph[[v]][[1]]) %in% vertex.name$expand_cluster)
+    tmp <- names(graph[[v]][[1]]) %in% vertex.name$cluster
+    names.cluster.vertex <- names(graph[[v]][[1]])[tmp]
+    
+    tmp <- names(graph[[v]][[1]]) %in% vertex.name$add_vertex
+    names.add.vertex <- names(graph[[v]][[1]])[tmp]
+    
+    tmp <- !(names(graph[[v]][[1]]) %in% vertex.name$expand_cluster)
+    names.other.vertex <- names(graph[[v]][[1]])[tmp]
     res <- NULL
     res[[v]] <- list(
-                rescount.cluster.vertex=count.cluster.vertex,
-                count.add.vertex=count.add.vertex,
-                count.other.vertex=count.other.vertex)
+                names.cluster.vertex=names.cluster.vertex,
+                names.add.vertex=names.add.vertex,
+                names.other.vertex=names.other.vertex)
     result <- c(result, res)
   }
   result
 }
 
-vertex.connectivity <- lapply(clusters_name, GetDegreeConnectivity, graph=pagoda_data$graphs$PCA)
+vertex_connectivity <- lapply(clusters_name, GetDegreeConnectivity, graph=pagoda_data$graphs$PCA)
+
+```
+
+### Отсечение лишних связей в графе
+```{r}
+
+RemoveConnections <- function(graph, clusters.name, vertex.connectivity,
+                              update.info=FALSE, embeding.type=NULL) {
+  assertthat::assert_that(length(vertex.connectivity) == length(clusters.name),
+                          msg = "That data must have the same length")
+  
+  matrix.graph <- igraph::as_adj(graph)
+  for (cluster.index in length(vertex.connectivity)) {
+    
+    cluster <- clusters.name[[cluster.index]][[1]]
+    add <- clusters.name[[cluster.index]][[3]]
+    tmp <- !(matrix.graph@Dimnames[[1]] %in% clusters.name[[cluster.index]][[2]])
+    other <- matrix.graph@Dimnames[[1]][tmp]
+    groups.name <- list(cluster, add, other)
+    
+    for (index.group in length(groups.name)) {
+      # рассматриваем каждую вершину из окрестности кластера
+      for (curr.row.name in names(vertex.connectivity[[cluster.index]])) {
+        # вершина с именами ее окрестности из гразны групп
+        curr.vertex <- vertex.connectivity[[cluster.index]][[curr.row.name]]
+        # количество соседей которое необходимо оставить для текущей верершины
+        # из определенной группы (кластера/окрестности/остального)
+        count.connect.vertex <- length(curr.vertex[[index.group]])
+        # вершины кластера/окрестности/остальные в графе
+        groups.vertex <- matrix.graph[curr.row.name, groups.name[[index.group]]]
+        # имена всех вершин с которыми иеются связи у текущей
+        all.connection <- names(groups.vertex[groups.vertex > 0])
+        
+        assertthat::assert_that(length(all.connection) >= count.connect.vertex,
+                                msg = "Error - Deleted vertex!")
+        
+        # логическая индексация вершин которые нужно оставить или удалить
+        logical.index <- sample(c(logical(count.connect.vertex), !logical(length(all.connection) - count.connect.vertex)))
+        # вектор вершин котрые подлежат удалению
+        deffect.conection <- all.connection[logical.index]
+        # лишние связи убираем (зануляем)
+        for (curr.col.name in deffect.conection) {
+          matrix.graph[curr.row.name, curr.col.name] <- 0
+          matrix.graph[curr.col.name, curr.row.name] <- 0
+        }
+      }
+    }
+  }
+  GetPagoda(matrix.graph, embeding.type = embeding.type)
+}
 
 ```
 
 ### Корректировка графа 
 ```{r}
 
-UpdateGraph <- function(deleted=FALSE) {
-  corrected_graph <- pagoda_data$graphs$PCA
+UpdateGraph <- function(graph, clusters.name, vertex.connectivity,
+                        embeding.type=NULL, deleted=FALSE) {
+  corrected.graph <- graph
   for (i in 1:length(levels(all_clusters))) {
     if (deleted == TRUE)
-      corrected_graph <- delete_vertices(corrected_graph, clusters_name[[i]]$cluster)
-    corrected_graph <- union(corrected_graph, clusters_pagoda_data[[i]]$graphs$PCA)
-    # здесь должно сразу идти отсечение лишних связей
+      corrected.graph <- delete_vertices(corrected.graph, clusters.name[[i]]$cluster)
+    corrected.graph <- union(corrected.graph, clusters_pagoda_data[[i]]$graphs$PCA)
   }
-  corrected_graph
+  RemoveConnections(corrected.graph, clusters.name, vertex.connectivity, deleted, embeding.type)
 }
-
-corrected_graph <- GetPagoda(igraph::as_adj(UpdateGraph(deleted = FALSE)), embeding.type = NULL)
-corrected_graph_d <- GetPagoda(igraph::as_adj(UpdateGraph(deleted = TRUE)), embeding.type = NULL)
 
 ```
 
-###Отрисовываем измененные графы
+### Получаем скоректированный граф
+```{r}
+
+corrected_graph <- UpdateGraph(pagoda_data$graphs$PCA, clusters.name = clusters_name,
+                               vertex.connectivity = vertex_connectivity, deleted = FALSE)
+#corrected_graph_d <- GetPagoda(igraph::as_adj(UpdateGraph(deleted = TRUE)), embeding.type = NULL)
+
+```
+
+### Построение графов
 ```{r}
 
 EmbedGraph <- function(graph, M=1, gamma=1, alpha=0.1, sgd_batches=1e8,
@@ -179,38 +243,38 @@ EmbedGraph <- function(graph, M=1, gamma=1, alpha=0.1, sgd_batches=1e8,
 
 ```
 
-
+### Находим кластеры к которым принадлежали вершины при первоначальном построении
 ```{r}
 
-GetBaseClusters <- function(base_graph, new_graph, cluster_type) {
-  l1 <- base_graph$clusters$PCA[[1]]
-  l2 <- new_graph$clusters$PCA[[1]]
+GetBaseClusters <- function(base.graph, new.graph, cluster.type) {
+  l1 <- base.graph$clusters$PCA[[1]]
+  l2 <- new.graph$clusters$PCA[[1]]
   assertthat::are_equal(l1, l2)
   
-  z <- base_graph$clusters$PCA[[cluster_type]]
-  names(z) <- names(base_graph$clusters$PCA[[cluster_type]])
+  z <- base.graph$clusters$PCA[[cluster.type]]
+  names(z) <- names(base.graph$clusters$PCA[[cluster.type]])
   
-  base_clusters <- NA
+  base.clusters <- NA
   for (i in 1:length(z)) {
-    curr_cell <- names(new_graph$graphs$PCA[[i]])
-    base_clusters[i] <- z[curr_cell]
+    curr.cell <- names(new.graph$graphs$PCA[[i]])
+    base.clusters[i] <- z[curr.cell]
   }
-  as.factor(base_clusters)
+  as.factor(base.clusters)
 }
 
-good_clusters_d <- GetBaseClusters(pagoda_data, corrected_graph_d, "multilevel")
+# good_clusters_d <- GetBaseClusters(pagoda_data, corrected_graph_d, "multilevel")
 good_clusters <- GetBaseClusters(pagoda_data, corrected_graph, "multilevel")
 
 ```
 
-
+### Отрисовываем измененные графы
 ```{r}
 embeddings_pagoda <- EmbedGraph(pagoda_data$graphs$PCA, n.cores=2,
                                 M=1, gamma=1.1, alpha=0.05, sgd_batches=1e8)
 embeddings_corrected_graph <- EmbedGraph(corrected_graph$graphs$PCA, n.cores=2,
                                          M=1, gamma=1.1, alpha=0.05, sgd_batches=1e8)
-embeddings_corrected_graph_d <- EmbedGraph(corrected_graph_d$graphs$PCA, n.cores=2,
-                                           M=1, gamma=1.1, alpha=0.05, sgd_batches=1e8)
+# embeddings_corrected_graph_d <- EmbedGraph(corrected_graph_d$graphs$PCA, n.cores=2,
+#                                            M=1, gamma=1.1, alpha=0.05, sgd_batches=1e8)
 
 ggplot() + geom_point(
   aes(x = embeddings_pagoda[,1], y = embeddings_pagoda[,2],
@@ -222,10 +286,10 @@ ggplot() + geom_point(
       color=good_clusters),
   size=0.3, alpha=0.5)
 
-ggplot() + geom_point(
-  aes(x = embeddings_corrected_graph_d[,1], y = embeddings_corrected_graph_d[,2],
-      color=good_clusters_d),
-  size=0.3, alpha=0.5)
+# ggplot() + geom_point(
+#   aes(x = embeddings_corrected_graph_d[,1], y = embeddings_corrected_graph_d[,2],
+#       color=good_clusters_d),
+#   size=0.3, alpha=0.5)
 
 ```
 
