@@ -1,0 +1,22 @@
+Package: Pagoda2GraphImprovement
+Title: What the Package Does (one line, title case)
+Version: 0.0.0.9000
+Authors@R: c(
+    person("Grigory", "Feoktistov", role = c("cre", "aut")),
+    person("Viktor", "Petukhov", email = "viktor.s.petukhov@ya.ru", role = "aut"))
+Depends: R (>= 3.4.0)
+Imports:
+  ggplot2 (>= 2.1.0),
+  dplyr (>= 0.5),
+  igraph,
+  Matrix (>= 1.2-7.1)
+Suggests:
+  parallel,
+  knitr,
+  rmarkdown,
+  pagoda2,
+  largeVis
+License: ???
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 6.1.0

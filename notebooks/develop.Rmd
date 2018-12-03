@@ -4,270 +4,80 @@ output: html_notebook
 ---
 
 ###Подключаем требуемые пакеты
-```{r}
 
+```{r, message=FALSE, warning=FALSE}
 library(igraph)
 library(pagoda2)
 library(ggplot2)
-library(random)
+
+theme_set(theme_bw())
 
 set.seed(2018)
-
 ```
 
-###Считываем данные и строим граф
-```{r}
+### Считываем данные и строим граф
 
-path_floder <- paste0(getwd(), "/../data/filtered_gene_bc_matrices/GRCh38")
+```{r}
+path_floder <- DataPath("filtered_gene_bc_matrices/GRCh38")
 
 load_matrix <- pagoda2::read.10x.matrices(path_floder)
 load_matrix <- load_matrix[!duplicated(rownames(load_matrix)),]
 pagoda_data <- pagoda2::basicP2proc(load_matrix)
-
 ```
 
-###Смотрим данные
-```{r}
+### Смотрим данные
 
+```{r}
 head(pagoda_data$reductions$PCA[,1:6], 5)
-
 ```
-```{r}
 
+```{r}
 correlation_matrix <- cor(t(pagoda_data$reductions$PCA))
 head(correlation_matrix[,1:3], 5)
-
 ```
+
 ```{r}
-
-PlotPagoda <- function(data, embedding.name, cluster.name=NULL, size=0.3, alpha=0.5) {
-  
-  embeddings <- data$embeddings$PCA[[embedding.name]]
-  clusters <- data$clusters$PCA[[cluster.name]]
-  
-  ggplot() + 
-    geom_point(aes(x = embeddings[,1], y = embeddings[,2], color=clusters),
-               size=size,alpha=alpha)
-}
-
 PlotPagoda(pagoda_data, "largeVis", "infomap")
 PlotPagoda(pagoda_data, "largeVis", "multilevel")
 PlotPagoda(pagoda_data, "tSNE", "infomap")
 PlotPagoda(pagoda_data, "tSNE", "multilevel")
-
 ```
 
-Эта функция делает то же самое, что и basicP2proc, только более конфигурируема
+### Выделяем вершины в кластерах и окрестностях кластеров, после чего строим граф для окрестности
+
 ```{r}
-
-GetPagoda <- function (cm, n.cores = 30, clustering.type = "infomap", embeding.type = "tSNE", 
-  tsne.iter.num = 1000, verbose = TRUE, n.pcs = 100, distance = "cosine", 
-  trim = 5, n.odgenes = 1000,  ...) 
-{
-  r <- pagoda2::Pagoda2$new(cm, modelType = "plain", trim = trim, 
-    n.cores = n.cores, verbose = verbose, ...)
-  r$adjustVariance(plot = F, do.par = F, gam.k = 10, verbose = verbose)
-  r$calculatePcaReduction(nPcs = n.pcs, n.odgenes = n.odgenes, maxit = 1000)
-
-  r$makeKnnGraph(k = 30, type = "PCA", center = T, distance = "cosine", 
-    weight.type = "none", verbose = verbose)
-  if (clustering.type == "infomap") {
-    r$getKnnClusters(method = igraph::infomap.community, type = "PCA", name = "infomap")
-  } else if (clustering.type == "multilevel") {
-    r$getKnnClusters(method = igraph::multilevel.community, type = "PCA", name = "multilevel")
-  } else stop("Unknown clustering  type")
-
-  if ("largeVis" %in% embeding.type) {
-    r$getEmbedding(type = "PCA", embeddingType = "largeVis")
-  }
-  
-  if ("tSNE" %in% embeding.type) {
-    r$getEmbedding(type = "PCA", perplexity = 30, embeddingType = "tSNE", 
-                   max_iter = tsne.iter.num)
-  }
-
-  return(r)
-}
-
-```
-
-###Выделяем вершины в кластерах и окрестностях кластеров, после чего строим граф для окрестности
-```{r}
-
 all_clusters <- pagoda_data$clusters$PCA$multilevel
+clusters_name <- lapply(levels(all_clusters), ClusterNeighborhood, all_clusters, pagoda_data)
 
-ClusterNeighborhood <- function(index, order=1, mindist=0) {
-  tmp_list <- list()
-  # выбираем кластер
-  cluster <- names(all_clusters[all_clusters==index])
-  # составляем список из всех соседей для каждой вершины кластера
-  for (item in neighborhood(pagoda_data$graphs$PCA, nodes = cluster, 
-                            order=order, mindist=mindist)) {
-    # знаю что так делать медленно, но как по другому?
-    tmp_list <- c(tmp_list, item)
-  }
-  # удаляем повторяющиеся вершины
-  tmp_list <- names(tmp_list[!duplicated(tmp_list)])
-  
-  list(cluster=cluster, expand_cluster=tmp_list, add_vertex=tmp_list[!(tmp_list %in% cluster)])
-}
-
-clusters_name <- lapply(levels(all_clusters), ClusterNeighborhood)
-
-
-CreateGraph <- function(index) {
-  # pagoda2::basicP2proc(load_matrix[,clusters_name[[index]]$expand_cluster])
-  GetPagoda(load_matrix[,clusters_name[[index]]$expand_cluster], embeding.type = NULL)
-}
-
-clusters_pagoda_data <- lapply(1:length(levels(all_clusters)), CreateGraph)
-
+clusters_pagoda_data <- lapply(1:length(levels(all_clusters)), function(id) 
+  GetPagoda(load_matrix[,clusters_name[[id]]$expand_cluster], embeding.type = NULL))
 ```
 
-###Находим степень связности кластера с остальным графом
+### Находим степень связности кластера с остальным графом
+
 ```{r}
-
-GetDegreeConnectivity <- function(graph, vertex.name) {
-  result <- list()
-  
-  for (v in vertex.name$add_vertex) {
-    tmp <- names(graph[[v]][[1]]) %in% vertex.name$cluster
-    names.cluster.vertex <- names(graph[[v]][[1]])[tmp]
-    
-    tmp <- names(graph[[v]][[1]]) %in% vertex.name$add_vertex
-    names.add.vertex <- names(graph[[v]][[1]])[tmp]
-    
-    tmp <- !(names(graph[[v]][[1]]) %in% vertex.name$expand_cluster)
-    names.other.vertex <- names(graph[[v]][[1]])[tmp]
-    res <- NULL
-    res[[v]] <- list(
-                names.cluster.vertex=names.cluster.vertex,
-                names.add.vertex=names.add.vertex,
-                names.other.vertex=names.other.vertex)
-    result <- c(result, res)
-  }
-  result
-}
-
 vertex_connectivity <- lapply(clusters_name, GetDegreeConnectivity, graph=pagoda_data$graphs$PCA)
-
-```
-
-### Отсечение лишних связей в графе
-```{r}
-
-RemoveConnections <- function(graph, clusters.name, vertex.connectivity,
-                              update.info=FALSE, embeding.type=NULL) {
-  assertthat::assert_that(length(vertex.connectivity) == length(clusters.name),
-                          msg = "That data must have the same length")
-  
-  matrix.graph <- igraph::as_adj(graph)
-  for (cluster.index in length(vertex.connectivity)) {
-    
-    cluster <- clusters.name[[cluster.index]][[1]]
-    add <- clusters.name[[cluster.index]][[3]]
-    tmp <- !(matrix.graph@Dimnames[[1]] %in% clusters.name[[cluster.index]][[2]])
-    other <- matrix.graph@Dimnames[[1]][tmp]
-    groups.name <- list(cluster, add, other)
-    
-    for (index.group in length(groups.name)) {
-      # рассматриваем каждую вершину из окрестности кластера
-      for (curr.row.name in names(vertex.connectivity[[cluster.index]])) {
-        # вершина с именами ее окрестности из гразны групп
-        curr.vertex <- vertex.connectivity[[cluster.index]][[curr.row.name]]
-        # количество соседей которое необходимо оставить для текущей верершины
-        # из определенной группы (кластера/окрестности/остального)
-        count.connect.vertex <- length(curr.vertex[[index.group]])
-        # вершины кластера/окрестности/остальные в графе
-        groups.vertex <- matrix.graph[curr.row.name, groups.name[[index.group]]]
-        # имена всех вершин с которыми иеются связи у текущей
-        all.connection <- names(groups.vertex[groups.vertex > 0])
-        
-        assertthat::assert_that(length(all.connection) >= count.connect.vertex,
-                                msg = "Error - Deleted vertex!")
-        
-        # логическая индексация вершин которые нужно оставить или удалить
-        logical.index <- sample(c(logical(count.connect.vertex), !logical(length(all.connection) - count.connect.vertex)))
-        # вектор вершин котрые подлежат удалению
-        deffect.conection <- all.connection[logical.index]
-        # лишние связи убираем (зануляем)
-        for (curr.col.name in deffect.conection) {
-          matrix.graph[curr.row.name, curr.col.name] <- 0
-          matrix.graph[curr.col.name, curr.row.name] <- 0
-        }
-      }
-    }
-  }
-  GetPagoda(matrix.graph, embeding.type = embeding.type)
-}
-
 ```
 
 ### Корректировка графа 
+
 ```{r}
-
-UpdateGraph <- function(graph, clusters.name, vertex.connectivity,
-                        embeding.type=NULL, deleted=FALSE) {
-  corrected.graph <- graph
-  for (i in 1:length(levels(all_clusters))) {
-    if (deleted == TRUE)
-      corrected.graph <- delete_vertices(corrected.graph, clusters.name[[i]]$cluster)
-    corrected.graph <- union(corrected.graph, clusters_pagoda_data[[i]]$graphs$PCA)
-  }
-  RemoveConnections(corrected.graph, clusters.name, vertex.connectivity, deleted, embeding.type)
-}
-
-```
-
-### Получаем скоректированный граф
-```{r}
-
-corrected_graph <- UpdateGraph(pagoda_data$graphs$PCA, clusters.name = clusters_name,
+corrected_graph <- UpdateGraph(all_clusters, clusters_pagoda_data,
+                               pagoda_data$graphs$PCA, clusters.name = clusters_name,
                                vertex.connectivity = vertex_connectivity, deleted = FALSE)
 #corrected_graph_d <- GetPagoda(igraph::as_adj(UpdateGraph(deleted = TRUE)), embeding.type = NULL)
 
 ```
 
-### Построение графов
-```{r}
-
-EmbedGraph <- function(graph, M=1, gamma=1, alpha=0.1, sgd_batches=1e8,
-                       seed=1, verbose=TRUE, n.cores=1) {
-  wij <- igraph::as_adj(graph, attr='weight');
-  coords <- largeVis::projectKNNs(wij = wij, dim=2, verbose = verbose,
-                                  sgd_batches = sgd_batches,gamma=gamma, M=M,
-                                  seed=seed, alpha=alpha, rho=1, threads=n.cores)
-  colnames(coords) <- igraph::V(graph)$name
-  return(t(coords))
-}
-
-```
-
 ### Находим кластеры к которым принадлежали вершины при первоначальном построении
+
 ```{r}
-
-GetBaseClusters <- function(base.graph, new.graph, cluster.type) {
-  l1 <- base.graph$clusters$PCA[[1]]
-  l2 <- new.graph$clusters$PCA[[1]]
-  assertthat::are_equal(l1, l2)
-  
-  z <- base.graph$clusters$PCA[[cluster.type]]
-  names(z) <- names(base.graph$clusters$PCA[[cluster.type]])
-  
-  base.clusters <- NA
-  for (i in 1:length(z)) {
-    curr.cell <- names(new.graph$graphs$PCA[[i]])
-    base.clusters[i] <- z[curr.cell]
-  }
-  as.factor(base.clusters)
-}
-
 # good_clusters_d <- GetBaseClusters(pagoda_data, corrected_graph_d, "multilevel")
 good_clusters <- GetBaseClusters(pagoda_data, corrected_graph, "multilevel")
-
 ```
 
 ### Отрисовываем измененные графы
+
 ```{r}
 embeddings_pagoda <- EmbedGraph(pagoda_data$graphs$PCA, n.cores=2,
                                 M=1, gamma=1.1, alpha=0.05, sgd_batches=1e8)
