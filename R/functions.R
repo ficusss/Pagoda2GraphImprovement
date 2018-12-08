@@ -78,10 +78,22 @@ GetDegreeConnectivity <- function(graph, vertex.name) {
   return(result)
 }
 
+#' @export
+RecalculationCountConnection <- function(const.vec, var.vec) {
+  diff <- const.vec - var.vec
+  index <- which.min(diff)
+  
+  if (diff[index] < 0) {
+    correct <- (var.vec / var.vec[index]) * diff[index]
+    var.vec <- round(var.vec + correct)
+  }
+  
+  return(var.vec)
+}
+
 #' @description Remove unwanted connections from the graph
 #' @export
-RemoveConnections <- function(graph, clusters.name, vertex.connectivity,
-                              update.info=FALSE, embeding.type=NULL) {
+RemoveConnections <- function(graph, clusters.name, vertex.connectivity, embeding.type=NULL) {
   assertthat::assert_that(length(vertex.connectivity) == length(clusters.name),
                           msg = "That data must have the same length")
   
@@ -93,36 +105,47 @@ RemoveConnections <- function(graph, clusters.name, vertex.connectivity,
     tmp <- !(matrix.graph@Dimnames[[1]] %in% clusters.name[[cluster.index]][[2]])
     other <- matrix.graph@Dimnames[[1]][tmp]
     groups.name <- list(cluster, add, other)
-
-    for (index.group in length(groups.name)) {
-      # рассматриваем каждую вершину из окрестности кластера
-      for (curr.row.name in names(vertex.connectivity[[cluster.index]])) {
-        # вершина с именами ее окрестности из гразны групп
-        curr.vertex <- vertex.connectivity[[cluster.index]][[curr.row.name]]
+    
+    # рассматриваем каждую вершину из окрестности кластера
+    for (curr.row.name in names(vertex.connectivity[[cluster.index]])) {
+      # вершина с именами ее окрестности из гразны групп
+      curr.vertex <- vertex.connectivity[[cluster.index]][[curr.row.name]]
+      
+      count.connect.vertex <- NULL
+      count.all.connection <- NULL
+      all.connection <- list()
+      
+      for (index.group in length(groups.name)) {
         # количество соседей которое необходимо оставить для текущей верершины
         # из определенной группы (кластера/окрестности/остального)
-        count.connect.vertex <- length(curr.vertex[[index.group]])
+        count.connect.vertex[index.group] <- length(curr.vertex[[index.group]])
         # вершины кластера/окрестности/остальные в графе
         groups.vertex <- matrix.graph[curr.row.name, groups.name[[index.group]]]
         # имена всех вершин с которыми иеются связи у текущей
-        all.connection <- names(groups.vertex[groups.vertex > 0])
+        all.connection[[index.group]] <- names(groups.vertex[groups.vertex > 0])
+        count.all.connection[index.group] <- length(all.connection[[index.group]])
+      }
+      
+      count.connect.vertex <- RecalculationCountConnection(count.all.connection, count.connect.vertex)
+      
+      for (index.group in length(groups.name)) {
         
-        assertthat::assert_that(length(all.connection) >= count.connect.vertex,
+        assertthat::assert_that(count.all.connection[index.group] >= count.connect.vertex[index.group],
                                 msg = "Error - Deleted vertex!")
         
         # логическая индексация вершин которые нужно оставить или удалить
-        logical.index <- sample(c(logical(count.connect.vertex), !logical(length(all.connection) - count.connect.vertex)))
+        logical.index <- sample(c(logical(count.connect.vertex[index.group]),
+                                  !logical(count.all.connection[index.group] - count.connect.vertex[index.group])))
         # вектор вершин котрые подлежат удалению
-        deffect.conection <- all.connection[logical.index]
+        deffect.conection <- all.connection[[index.group]][logical.index]
+        
         # лишние связи убираем (зануляем)
-        for (curr.col.name in deffect.conection) {
-          matrix.graph[curr.row.name, curr.col.name] <- 0
-          matrix.graph[curr.col.name, curr.row.name] <- 0
-        }
+        matrix.graph[curr.row.name, deffect.conection] <- 0
+        matrix.graph[deffect.conection, curr.row.name] <- 0
       }
     }
   }
-
+  
   return(GetPagoda(matrix.graph, embeding.type = embeding.type))
 }
 
@@ -138,7 +161,7 @@ UpdateGraph <- function(clusters, p2.objects, graph, clusters.name, vertex.conne
     corrected.graph <- igraph::union(corrected.graph, p2.objects[[i]]$graphs$PCA)
   }
   
-  return(RemoveConnections(corrected.graph, clusters.name, vertex.connectivity, deleted, embeding.type))
+  return(RemoveConnections(corrected.graph, clusters.name, vertex.connectivity, embeding.type))
 }
 
 #' @export

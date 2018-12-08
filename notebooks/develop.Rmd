@@ -6,6 +6,7 @@ output: html_notebook
 ###Подключаем требуемые пакеты
 
 ```{r, message=FALSE, warning=FALSE}
+
 library(igraph)
 library(pagoda2)
 library(ggplot2)
@@ -13,72 +14,95 @@ library(ggplot2)
 theme_set(theme_bw())
 
 set.seed(2018)
+
 ```
 
 ### Считываем данные и строим граф
 
 ```{r}
+
 path_floder <- DataPath("filtered_gene_bc_matrices/GRCh38")
 
 load_matrix <- pagoda2::read.10x.matrices(path_floder)
 load_matrix <- load_matrix[!duplicated(rownames(load_matrix)),]
 pagoda_data <- pagoda2::basicP2proc(load_matrix)
+
 ```
 
 ### Смотрим данные
 
 ```{r}
+
 head(pagoda_data$reductions$PCA[,1:6], 5)
+
 ```
 
 ```{r}
+
 correlation_matrix <- cor(t(pagoda_data$reductions$PCA))
 head(correlation_matrix[,1:3], 5)
+
 ```
 
 ```{r}
+
 PlotPagoda(pagoda_data, "largeVis", "infomap")
 PlotPagoda(pagoda_data, "largeVis", "multilevel")
 PlotPagoda(pagoda_data, "tSNE", "infomap")
 PlotPagoda(pagoda_data, "tSNE", "multilevel")
+
 ```
 
 ### Выделяем вершины в кластерах и окрестностях кластеров, после чего строим граф для окрестности
 
 ```{r}
+
 all_clusters <- pagoda_data$clusters$PCA$multilevel
 clusters_name <- lapply(levels(all_clusters), ClusterNeighborhood, all_clusters, pagoda_data)
 
 clusters_pagoda_data <- lapply(1:length(levels(all_clusters)), function(id) 
   GetPagoda(load_matrix[,clusters_name[[id]]$expand_cluster], embeding.type = NULL))
+
 ```
 
 ### Находим степень связности кластера с остальным графом
 
 ```{r}
+
 vertex_connectivity <- lapply(clusters_name, GetDegreeConnectivity, graph=pagoda_data$graphs$PCA)
+
 ```
 
 ### Корректировка графа 
 
 ```{r}
+
 corrected_graph <- UpdateGraph(all_clusters, clusters_pagoda_data,
                                pagoda_data$graphs$PCA, clusters.name = clusters_name,
                                vertex.connectivity = vertex_connectivity, deleted = FALSE)
-#corrected_graph_d <- GetPagoda(igraph::as_adj(UpdateGraph(deleted = TRUE)), embeding.type = NULL)
+
+```
+```{r}
+
+# corrected_graph_d <- UpdateGraph(all_clusters, clusters_pagoda_data,
+#                                pagoda_data$graphs$PCA, clusters.name = clusters_name,
+#                                vertex.connectivity = vertex_connectivity, deleted = TRUE)
 
 ```
 
 ### Находим кластеры к которым принадлежали вершины при первоначальном построении
 
 ```{r}
+
 # good_clusters_d <- GetBaseClusters(pagoda_data, corrected_graph_d, "multilevel")
 good_clusters <- GetBaseClusters(pagoda_data, corrected_graph, "multilevel")
+
 ```
 
 ### Отрисовываем измененные графы
 
 ```{r}
+
 embeddings_pagoda <- EmbedGraph(pagoda_data$graphs$PCA, n.cores=2,
                                 M=1, gamma=1.1, alpha=0.05, sgd_batches=1e8)
 embeddings_corrected_graph <- EmbedGraph(corrected_graph$graphs$PCA, n.cores=2,
