@@ -29,30 +29,6 @@ pagoda_data <- pagoda2::basicP2proc(load_matrix)
 
 ```
 
-### Смотрим данные
-
-```{r}
-
-head(pagoda_data$reductions$PCA[,1:6], 5)
-
-```
-
-```{r}
-
-correlation_matrix <- cor(t(pagoda_data$reductions$PCA))
-head(correlation_matrix[,1:3], 5)
-
-```
-
-```{r}
-
-PlotPagoda(pagoda_data, "largeVis", "infomap")
-PlotPagoda(pagoda_data, "largeVis", "multilevel")
-PlotPagoda(pagoda_data, "tSNE", "infomap")
-PlotPagoda(pagoda_data, "tSNE", "multilevel")
-
-```
-
 ### Выделяем вершины в кластерах и окрестностях кластеров, после чего строим граф для окрестности
 
 ```{r}
@@ -84,46 +60,41 @@ corrected_graph <- UpdateGraph(all_clusters, clusters_pagoda_data,
 ```
 ```{r}
 
-# corrected_graph_d <- UpdateGraph(all_clusters, clusters_pagoda_data,
-#                                pagoda_data$graphs$PCA, clusters.name = clusters_name,
-#                                vertex.connectivity = vertex_connectivity, deleted = TRUE)
+n_edges_per_vertex <- Matrix::rowSums(igraph::as_adj(corrected_graph$graphs$PCA))
+qplot(n_edges_per_vertex, bins=50)
+length(n_edges_per_vertex[n_edges_per_vertex == 0])
 
 ```
+```{r}
 
-### Находим кластеры к которым принадлежали вершины при первоначальном построении
+corrected_graph <- pagoda_data$graphs$PCA
+print(length(igraph::as_adj(corrected_graph)))
+
+for (i in 1:length(levels(all_clusters))) {
+  message("Cluster: ", i)
+  
+  corrected_graph <- igraph::delete_vertices(corrected_graph, clusters_name[[i]]$cluster)
+  print(igraph::as_adj(corrected_graph)@Dim)
+  
+  corrected_graph <- igraph::union(corrected_graph, clusters_pagoda_data[[i]]$graphs$PCA)
+  print(igraph::as_adj(corrected_graph)@Dim)
+}
+
+```
+тут происходит ошибка, не совсем пока понятно почему именно так происходит.
+известно что заключается она в следующих строках функции RemoveConnections
+
+matrix.graph[curr.row.name, deffect.conection] <- 0
+matrix.graph[deffect.conection, curr.row.name] <- 0
+
+как я понял, почему-то в матрице не оказывается некоторых значений (вершин)..
+возможно что-то другое, не до конца ясно.
 
 ```{r}
 
-# good_clusters_d <- GetBaseClusters(pagoda_data, corrected_graph_d, "multilevel")
-good_clusters <- GetBaseClusters(pagoda_data, corrected_graph, "multilevel")
-
-```
-
-### Отрисовываем измененные графы
-
-```{r}
-
-embeddings_pagoda <- EmbedGraph(pagoda_data$graphs$PCA, n.cores=2,
-                                M=1, gamma=1.1, alpha=0.05, sgd_batches=1e8)
-embeddings_corrected_graph <- EmbedGraph(corrected_graph$graphs$PCA, n.cores=2,
-                                         M=1, gamma=1.1, alpha=0.05, sgd_batches=1e8)
-# embeddings_corrected_graph_d <- EmbedGraph(corrected_graph_d$graphs$PCA, n.cores=2,
-#                                            M=1, gamma=1.1, alpha=0.05, sgd_batches=1e8)
-
-ggplot() + geom_point(
-  aes(x = embeddings_pagoda[,1], y = embeddings_pagoda[,2],
-      color=all_clusters),
-  size=0.3, alpha=0.5)
-
-ggplot() + geom_point(
-  aes(x = embeddings_corrected_graph[,1], y = embeddings_corrected_graph[,2],
-      color=good_clusters),
-  size=0.3, alpha=0.5)
-
-# ggplot() + geom_point(
-#   aes(x = embeddings_corrected_graph_d[,1], y = embeddings_corrected_graph_d[,2],
-#       color=good_clusters_d),
-#   size=0.3, alpha=0.5)
+corrected_graph_d <- UpdateGraph(all_clusters, clusters_pagoda_data,
+                                 pagoda_data$graphs$PCA, clusters.name = clusters_name,
+                                 vertex.connectivity = vertex_connectivity, deleted = TRUE)
 
 ```
 
