@@ -10,6 +10,7 @@ output: html_notebook
 library(igraph)
 library(pagoda2)
 library(ggplot2)
+library(magrittr)
 
 theme_set(theme_bw())
 
@@ -53,22 +54,22 @@ vertex_connectivity <- lapply(clusters_name, GetDegreeConnectivity, graph=pagoda
 
 ```{r}
 
-corrected_graph <- UpdateGraph(all_clusters, clusters_pagoda_data,
+corrected_graph_r <- UpdateGraph(all_clusters, clusters_pagoda_data,
                                pagoda_data$graphs$PCA, clusters.name = clusters_name,
                                vertex.connectivity = vertex_connectivity, deleted = FALSE)
 
 ```
 ```{r}
 
-n_edges_per_vertex <- Matrix::rowSums(igraph::as_adj(corrected_graph$graphs$PCA))
+n_edges_per_vertex <- Matrix::rowSums(igraph::as_adj(corrected_graph_r$graphs$PCA))
 qplot(n_edges_per_vertex, bins=50)
-length(n_edges_per_vertex[n_edges_per_vertex == 0])
+print(length(n_edges_per_vertex[n_edges_per_vertex == 0]))
 
 ```
 ```{r}
 
 corrected_graph <- pagoda_data$graphs$PCA
-print(length(igraph::as_adj(corrected_graph)))
+print(igraph::as_adj(corrected_graph)@Dim)
 
 for (i in 1:length(levels(all_clusters))) {
   message("Cluster: ", i)
@@ -78,6 +79,24 @@ for (i in 1:length(levels(all_clusters))) {
   
   corrected_graph <- igraph::union(corrected_graph, clusters_pagoda_data[[i]]$graphs$PCA)
   print(igraph::as_adj(corrected_graph)@Dim)
+}
+
+```
+```{r}
+
+corrected_graph <- igraph::as_adj(pagoda_data$graphs$PCA)
+print(corrected_graph@Dim)
+
+for (i in 1:length(levels(all_clusters))) {
+  message("Cluster: ", i)
+  
+  corrected_graph[clusters_name[[i]]$cluster]
+  
+  # corrected_graph <- igraph::delete_vertices(corrected_graph, clusters_name[[i]]$cluster)
+  print(corrected_graph@Dim)
+  
+  # corrected_graph <- igraph::union(corrected_graph, clusters_pagoda_data[[i]]$graphs$PCA)
+  print(corrected_graph@Dim)
 }
 
 ```
@@ -101,10 +120,34 @@ corrected_graph_d <- UpdateGraph(all_clusters, clusters_pagoda_data,
 
 ```{r}
 
+n <- names(pagoda_data$graphs$PCA[[1]])
+tmp <- igraph::E(pagoda_data$graphs$PCA)
+tmp1 <- igraph::V(pagoda_data$graphs$PCA)
+tmp2 <- igraph::incident(pagoda_data$graphs$PCA, tmp1[n])
+
+tmp2 <- tmp[tmp2]
+
+vertices <- tmp1[clusters_name[[1]]$expand_cluster]
+
+tmp2[order(tmp2$weight, decreasing = TRUE)]
+
+lists_of_edges <- lapply(vertices, GetKEdgesForVertex,
+                         graph = pagoda_data$graphs$PCA, k = 5, decreasing = TRUE)
+
+igraph::incident(pagoda_data$graphs$PCA, vertices[[1]])$weight
+
+res <- unique(Reduce(union, lists_of_edges))
+
+corrected_graph <- pagoda_data$graphs$PCA
+igraph::delete.edges(corrected_graph, tmp[res])
+
 ```
 
 
 ```{r}
+
+update_knn_graph <- UpdateKnnGraph(pagoda_data$graphs$PCA, clusters_pagoda_data,
+                                   all_clusters, clusters_name)
 
 ```
 
@@ -119,8 +162,29 @@ corrected_graph_d <- UpdateGraph(all_clusters, clusters_pagoda_data,
 ### Зона тестирования функциональных возможностей RRRRrrrr...
 ```{r}
 
+
+ring_g <- igraph::make_ring(5)
+star_g <- igraph::make_star(6, mode = "undirected", center = 6)
+plot(star_g)
+plot(ring_g)
+
+union_g <- igraph::union(star_g, ring_g)
+
+plot(union_g)
+
+igraph::as_adj_edge_list(union_g)
+
+igraph::edge_attr(union_g, 1)
+
+
 ```
 ```{r}
+
+g <- igraph::make_ring(5)
+igraph::ends(g, igraph::E(g))
+
+ igraph::E(g)
+ 
 
 ```
 ```{r}

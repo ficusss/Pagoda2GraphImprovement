@@ -111,19 +111,25 @@ embeddings_corrected_graph <- EmbedGraph(corrected_graph$graphs$PCA, n.cores=2,
 #                                            M=1, gamma=1.1, alpha=0.05, sgd_batches=1e8)
 
 ggplot() + geom_point(
-  aes(x = embeddings_pagoda[,1], y = embeddings_pagoda[,2],
-      color=all_clusters),
+  aes(x = embeddings_pagoda[,1], y = embeddings_pagoda[,2], color=all_clusters),
   size=0.3, alpha=0.5)
+
 
 ggplot() + geom_point(
-  aes(x = embeddings_corrected_graph[,1], y = embeddings_corrected_graph[,2],
-      color=good_clusters),
+  aes(x = embeddings_corrected_graph[,1], y = embeddings_corrected_graph[,2], color=good_clusters),
   size=0.3, alpha=0.5)
 
-# ggplot() + geom_point(
+
+# plot_corrected_graph_d <- ggplot() + geom_point(
 #   aes(x = embeddings_corrected_graph_d[,1], y = embeddings_corrected_graph_d[,2],
 #       color=good_clusters_d),
 #   size=0.3, alpha=0.5)
 
 ```
 
+
+```{r}
+
+```
+```{r}
+```
