@@ -176,17 +176,17 @@ EmbedGraph <- function(graph, M=1, gamma=1, alpha=0.1, sgd_batches=1e8,
 }
 
 #' @export
-GetBaseClusters <- function(base.graph, new.graph, cluster.type) {
-  l1 <- base.graph$clusters$PCA[[1]]
-  l2 <- new.graph$clusters$PCA[[1]]
+GetBaseClusters <- function(base.pagoda.graph, new.graph, cluster.type) {
+  l1 <- base.pagoda.graph$clusters$PCA[[1]]
+  l2 <- new.graph[[1]]
   assertthat::are_equal(l1, l2)
   
-  z <- base.graph$clusters$PCA[[cluster.type]]
-  names(z) <- names(base.graph$clusters$PCA[[cluster.type]])
+  z <- base.pagoda.graph$clusters$PCA[[cluster.type]]
+  names(z) <- names(base.pagoda.graph$clusters$PCA[[cluster.type]])
   
   base.clusters <- NA
   for (i in 1:length(z)) {
-    curr.cell <- names(new.graph$graphs$PCA[[i]])
+    curr.cell <- names(new.graph[[i]])
     base.clusters[i] <- z[curr.cell]
   }
   

@@ -82,33 +82,17 @@ corrected_graph <- UpdateGraph(all_clusters, clusters_pagoda_data,
                                vertex.connectivity = vertex_connectivity, deleted = FALSE)
 
 ```
-```{r}
-
-# corrected_graph_d <- UpdateGraph(all_clusters, clusters_pagoda_data,
-#                                pagoda_data$graphs$PCA, clusters.name = clusters_name,
-#                                vertex.connectivity = vertex_connectivity, deleted = TRUE)
-
-```
-
-### Находим кластеры к которым принадлежали вершины при первоначальном построении
-
-```{r}
-
-# good_clusters_d <- GetBaseClusters(pagoda_data, corrected_graph_d, "multilevel")
-good_clusters <- GetBaseClusters(pagoda_data, corrected_graph, "multilevel")
-
-```
 
 ### Отрисовываем измененные графы
 
 ```{r}
+# Находим кластеры к которым принадлежали вершины при первоначальном построении
+good_clusters <- GetBaseClusters(pagoda_data, corrected_graph$graphs$PCA, "multilevel")
 
 embeddings_pagoda <- EmbedGraph(pagoda_data$graphs$PCA, n.cores=2,
                                 M=1, gamma=1.1, alpha=0.05, sgd_batches=1e8)
 embeddings_corrected_graph <- EmbedGraph(corrected_graph$graphs$PCA, n.cores=2,
                                          M=1, gamma=1.1, alpha=0.05, sgd_batches=1e8)
-# embeddings_corrected_graph_d <- EmbedGraph(corrected_graph_d$graphs$PCA, n.cores=2,
-#                                            M=1, gamma=1.1, alpha=0.05, sgd_batches=1e8)
 
 ggplot() + geom_point(
   aes(x = embeddings_pagoda[,1], y = embeddings_pagoda[,2], color=all_clusters),
@@ -119,17 +103,56 @@ ggplot() + geom_point(
   aes(x = embeddings_corrected_graph[,1], y = embeddings_corrected_graph[,2], color=good_clusters),
   size=0.3, alpha=0.5)
 
+```
 
-# plot_corrected_graph_d <- ggplot() + geom_point(
-#   aes(x = embeddings_corrected_graph_d[,1], y = embeddings_corrected_graph_d[,2],
-#       color=good_clusters_d),
-#   size=0.3, alpha=0.5)
+### Строим kNN граф
+```{r}
+
+updated_knn_graph <- UpdateKnnGraph(pagoda_data$graphs$PCA, clusters_pagoda_data,
+                                   all_clusters, clusters_name, 15)
 
 ```
 
-
+### Строим mNN граф
 ```{r}
 
+updated_mnn_graph <- UpdateMnnGraph(pagoda_data$graphs$PCA, clusters_pagoda_data,
+                                   all_clusters, clusters_name, 15)
+
+```
+
+### Отрисовываем kNN и mNN графы
+```{r}
+
+good_clusters_knn <- GetBaseClusters(pagoda_data, updated_knn_graph, "multilevel")
+good_clusters_mnn <- GetBaseClusters(pagoda_data, updated_mnn_graph, "multilevel")
+
+embeddings_updated_knn_graph <- EmbedGraph(updated_knn_graph, n.cores=2,
+                                         M=1, gamma=1.1, alpha=0.05, sgd_batches=1e8)
+
+embeddings_updated_mnn_graph <- EmbedGraph(updated_mnn_graph, n.cores=2,
+                                         M=1, gamma=1.1, alpha=0.05, sgd_batches=1e8)
+
+ggplot() + geom_point(
+  aes(x = embeddings_pagoda[,1], y = embeddings_pagoda[,2], color=all_clusters),
+  size=0.3, alpha=0.5)
+
+ggplot() + geom_point(
+  aes(x = embeddings_updated_knn_graph[,1], y = embeddings_updated_knn_graph[,2], color=good_clusters_knn),
+  size=0.3, alpha=0.5)
+
+ggplot() + geom_point(
+  aes(x = embeddings_updated_mnn_graph[,1], y = embeddings_updated_mnn_graph[,2], color=good_clusters_mnn),
+  size=0.3, alpha=0.5)
+
+```
+```{r}
+```
+```{r}
+```
+```{r}
+```
+```{r}
 ```
 ```{r}
 ```

@@ -13,66 +13,58 @@ GetKEdgesForVertex <- function(graph, vertex, k, decreasing=TRUE) {
 }
 
 #' @export
-GetEdgesForCluster <- function(graph, vertices, k, decreasing=TRUE) {
-  lists.of.edges <- lapply(vertices, GetKEdgesForVertex, graph = graph, k = k,
-                           decreasing = decreasing)
-  res <- unique(Reduce(union, lists.of.edges))
-  
-  return(res)
-}
-
-#' @export
-RestoreMnnGraph <- function(graph, vertices, m) {
-  print("--- --- Get edges for remove...")
-  lists.of.edges <- lapply(vertices, GetKEdgesForVertex, graph = graph, k = m,
+RestoreMnnGraph <- function(graph, m) {
+  print("--- Get edges for remove...")
+  lists.of.edges <- pblapply(igraph::V(graph), GetKEdgesForVertex, graph = graph, k = m,
                            decreasing = FALSE)
   bad.edges <- unique(Reduce(union, lists.of.edges))
-  print("--- --- Remove edges...")
+  print("--- Remove edges...")
   corrected.graph <- igraph::delete.edges(graph, igraph::E(graph)[bad.edges])
   
   return(corrected.graph)
 }
 
 #' @export
-UpdateIncorrectMnnGraph <- function(graph, p2.objects, clusters, clusters.name, m, embeding.type=NULL) {
+UpdateMnnGraph <- function(graph, p2.objects, clusters, clusters.name, m, embeding.type=NULL) {
   corrected.graph <- graph
-  vertices.graph <- igraph::V(corrected.graph)
+  print("Union graphs...")
   for (i in 1:length(levels(clusters))) {
-    print(paste("Processing cluster number -", i))
-    print("--- Union graph with clusters graph...")
     corrected.graph <- igraph::union(corrected.graph, p2.objects[[i]]$graphs$PCA)
     
     edges.graph <- igraph::E(corrected.graph)
     new.weight <- ifelse(is.na(edges.graph$weight_2), edges.graph$weight_1, edges.graph$weight_2)
     igraph::E(corrected.graph)$weight <- new.weight
-    vertices.cluster <- vertices.graph[clusters.name[[i]]$expand_cluster]
-    
-    print("--- Restore mNN graph...")
-    corrected.graph <- RestoreMnnGraph(corrected.graph, vertices.cluster, m)
   }
+  print("Restore mNN graph...")
+  corrected.graph <- RestoreMnnGraph(corrected.graph, m)
   
   return(corrected.graph)
 }
 
+#' @export
 RestoreKnnGraph <- function(graph, k) {
+  print("--- Get edges for saving...")
   lists.of.edges <- lapply(igraph::V(graph), GetKEdgesForVertex, graph = graph, k = k,
                            decreasing = TRUE)
   good.edges <- unique(Reduce(union, lists.of.edges))
+  print("--- Remove edges...")
   corrected.graph <- igraph::subgraph.edges(graph, igraph::E(graph)[good.edges])
   
   return(corrected.graph)
 }
 
+#' @export
 UpdateKnnGraph <- function(graph, p2.objects, clusters, clusters.name, k, embeding.type=NULL) {
   corrected.graph <- graph
-  print("Union Graphs")
+  print("Union graphs...")
   for (i in 1:length(levels(clusters))) {
     corrected.graph <- igraph::union(corrected.graph, p2.objects[[i]]$graphs$PCA)
+    
     edges.graph <- igraph::E(corrected.graph)
     new.weight <- ifelse(is.na(edges.graph$weight_2), edges.graph$weight_1, edges.graph$weight_2)
     igraph::E(corrected.graph)$weight <- new.weight
   }
-  print("RestoreKnnGraph")
+  print("Restore kNN graph...")
   corrected.graph <- RestoreKnnGraph(corrected.graph, k)
   
   return(corrected.graph)

@@ -82,13 +82,13 @@ update_knn_graph <- UpdateKnnGraph(pagoda_data$graphs$PCA, clusters_pagoda_data,
 
 ```{r}
 
-GetBaseClusters_d <- function(base.graph, new.graph, cluster.type) {
-  l1 <- base.graph$clusters$PCA[[1]]
+GetBaseClusters_d <- function(base.pagoda.graph, new.graph, cluster.type) {
+  l1 <- base.pagoda.graph$clusters$PCA[[1]]
   l2 <- new.graph[[1]]
   assertthat::are_equal(l1, l2)
   
-  z <- base.graph$clusters$PCA[[cluster.type]]
-  names(z) <- names(base.graph$clusters$PCA[[cluster.type]])
+  z <- base.pagoda.graph$clusters$PCA[[cluster.type]]
+  names(z) <- names(base.pagoda.graph$clusters$PCA[[cluster.type]])
   
   base.clusters <- NA
   for (i in 1:length(z)) {
