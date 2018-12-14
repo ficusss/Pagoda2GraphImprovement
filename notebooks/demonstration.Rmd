@@ -10,6 +10,7 @@ output: html_notebook
 library(igraph)
 library(pagoda2)
 library(ggplot2)
+library(pbapply)
 
 theme_set(theme_bw())
 
@@ -104,20 +105,27 @@ ggplot() + geom_point(
   size=0.3, alpha=0.5)
 
 ```
+```{r}
+
+n_edges_per_vertex <- Matrix::rowSums(igraph::as_adj(corrected_graph$graphs$PCA))
+qplot(n_edges_per_vertex, bins=50)
+print(length(n_edges_per_vertex[n_edges_per_vertex == 0]))
+
+```
 
 ### Строим kNN граф
 ```{r}
 
-updated_knn_graph <- UpdateKnnGraph(pagoda_data$graphs$PCA, clusters_pagoda_data,
-                                   all_clusters, clusters_name, 15)
+updated_knn_graph <- UpdateNNGraph(pagoda_data$graphs$PCA, clusters_pagoda_data,
+                                   all_clusters, clusters_name, 15, graph.type = 'knn')
 
 ```
 
 ### Строим mNN граф
 ```{r}
 
-updated_mnn_graph <- UpdateMnnGraph(pagoda_data$graphs$PCA, clusters_pagoda_data,
-                                   all_clusters, clusters_name, 15)
+updated_mnn_graph <- UpdateNNGraph(pagoda_data$graphs$PCA, clusters_pagoda_data,
+                                   all_clusters, clusters_name, 15, graph.type = 'knn')
 
 ```
 
@@ -147,6 +155,15 @@ ggplot() + geom_point(
 
 ```
 ```{r}
+
+n_edges_per_vertex <- Matrix::rowSums(igraph::as_adj(updated_knn_graph))
+qplot(n_edges_per_vertex, bins=50)
+print(paste("kNN:", length(n_edges_per_vertex[n_edges_per_vertex == 0])))
+
+n_edges_per_vertex <- Matrix::rowSums(igraph::as_adj(updated_mnn_graph))
+qplot(n_edges_per_vertex, bins=50)
+print(paste("mNN:", length(n_edges_per_vertex[n_edges_per_vertex == 0])))
+
 ```
 ```{r}
 ```

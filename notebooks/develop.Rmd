@@ -10,7 +10,8 @@ output: html_notebook
 library(igraph)
 library(pagoda2)
 library(ggplot2)
-library(magrittr)
+# library(magrittr)
+library(pbapply)
 
 theme_set(theme_bw())
 
@@ -74,8 +75,8 @@ print(length(n_edges_per_vertex[n_edges_per_vertex == 0]))
 
 ```{r}
 
-update_knn_graph <- UpdateKnnGraph(pagoda_data$graphs$PCA, clusters_pagoda_data,
-                                   all_clusters, clusters_name, 15)
+update_knn_graph <- UpdateNNGraph(pagoda_data$graphs$PCA, clusters_pagoda_data,
+                                   all_clusters, clusters_name, 15, graph.type = 'knn')
 
 ```
 
@@ -126,7 +127,11 @@ ggplot() + geom_point(
 
 ```{r}
 
-n_edges_per_vertex <- Matrix::rowSums(igraph::as_adj(update_knn_graph))
+n_edges_per_vertex <- Matrix::rowSums(igraph::as_adj(updated_knn_graph))
+qplot(n_edges_per_vertex, bins=50)
+print(length(n_edges_per_vertex[n_edges_per_vertex == 0]))
+
+n_edges_per_vertex <- Matrix::rowSums(igraph::as_adj(updated_mnn_graph))
 qplot(n_edges_per_vertex, bins=50)
 print(length(n_edges_per_vertex[n_edges_per_vertex == 0]))
 
