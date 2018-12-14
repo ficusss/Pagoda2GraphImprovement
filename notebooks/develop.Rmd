@@ -66,80 +66,8 @@ qplot(n_edges_per_vertex, bins=50)
 print(length(n_edges_per_vertex[n_edges_per_vertex == 0]))
 
 ```
-```{r}
-
-corrected_graph <- pagoda_data$graphs$PCA
-print(igraph::as_adj(corrected_graph)@Dim)
-
-for (i in 1:length(levels(all_clusters))) {
-  message("Cluster: ", i)
-  
-  corrected_graph <- igraph::delete_vertices(corrected_graph, clusters_name[[i]]$cluster)
-  print(igraph::as_adj(corrected_graph)@Dim)
-  
-  corrected_graph <- igraph::union(corrected_graph, clusters_pagoda_data[[i]]$graphs$PCA)
-  print(igraph::as_adj(corrected_graph)@Dim)
-}
-
-```
-```{r}
-
-corrected_graph <- igraph::as_adj(pagoda_data$graphs$PCA)
-print(corrected_graph@Dim)
-
-for (i in 1:length(levels(all_clusters))) {
-  message("Cluster: ", i)
-  
-  corrected_graph[clusters_name[[i]]$cluster]
-  
-  # corrected_graph <- igraph::delete_vertices(corrected_graph, clusters_name[[i]]$cluster)
-  print(corrected_graph@Dim)
-  
-  # corrected_graph <- igraph::union(corrected_graph, clusters_pagoda_data[[i]]$graphs$PCA)
-  print(corrected_graph@Dim)
-}
-
-```
-тут происходит ошибка, не совсем пока понятно почему именно так происходит.
-известно что заключается она в следующих строках функции RemoveConnections
-
-matrix.graph[curr.row.name, deffect.conection] <- 0
-matrix.graph[deffect.conection, curr.row.name] <- 0
-
-как я понял, почему-то в матрице не оказывается некоторых значений (вершин)..
-возможно что-то другое, не до конца ясно.
 
 ```{r}
-
-corrected_graph_d <- UpdateGraph(all_clusters, clusters_pagoda_data,
-                                 pagoda_data$graphs$PCA, clusters.name = clusters_name,
-                                 vertex.connectivity = vertex_connectivity, deleted = TRUE)
-
-```
-
-
-```{r}
-
-n <- names(pagoda_data$graphs$PCA[[1]])
-tmp <- igraph::E(pagoda_data$graphs$PCA)
-tmp1 <- igraph::V(pagoda_data$graphs$PCA)
-tmp2 <- igraph::incident(pagoda_data$graphs$PCA, tmp1[n])
-
-tmp2 <- tmp[tmp2]
-
-vertices <- tmp1[clusters_name[[1]]$expand_cluster]
-
-tmp2[order(tmp2$weight, decreasing = TRUE)]
-
-lists_of_edges <- lapply(vertices, GetKEdgesForVertex,
-                         graph = pagoda_data$graphs$PCA, k = 5, decreasing = TRUE)
-
-igraph::incident(pagoda_data$graphs$PCA, vertices[[1]])$weight
-
-res <- unique(Reduce(union, lists_of_edges))
-
-corrected_graph <- pagoda_data$graphs$PCA
-igraph::delete.edges(corrected_graph, tmp[res])
 
 ```
 
@@ -147,46 +75,76 @@ igraph::delete.edges(corrected_graph, tmp[res])
 ```{r}
 
 update_knn_graph <- UpdateKnnGraph(pagoda_data$graphs$PCA, clusters_pagoda_data,
-                                   all_clusters, clusters_name)
+                                   all_clusters, clusters_name, 15)
 
 ```
 
 
 ```{r}
+
+GetBaseClusters_d <- function(base.graph, new.graph, cluster.type) {
+  l1 <- base.graph$clusters$PCA[[1]]
+  l2 <- new.graph[[1]]
+  assertthat::are_equal(l1, l2)
+  
+  z <- base.graph$clusters$PCA[[cluster.type]]
+  names(z) <- names(base.graph$clusters$PCA[[cluster.type]])
+  
+  base.clusters <- NA
+  for (i in 1:length(z)) {
+    curr.cell <- names(new.graph[[i]])
+    base.clusters[i] <- z[curr.cell]
+  }
+  
+  return(as.factor(base.clusters))
+}
+
+good_clusters_knn <- GetBaseClusters_d(pagoda_data, update_knn_graph, "multilevel")
+good_clusters <- GetBaseClusters(pagoda_data, corrected_graph_r, "multilevel")
+
+embeddings_pagoda <- EmbedGraph(pagoda_data$graphs$PCA, n.cores=2,
+                                M=1, gamma=1.1, alpha=0.05, sgd_batches=1e8)
+embeddings_corrected_graph_r <- EmbedGraph(corrected_graph_r$graphs$PCA, n.cores=2,
+                                         M=1, gamma=1.1, alpha=0.05, sgd_batches=1e8)
+embeddings_update_knn_graph <- EmbedGraph(update_knn_graph, n.cores=2,
+                                         M=1, gamma=1.1, alpha=0.05, sgd_batches=1e8)
+
+ggplot() + geom_point(
+  aes(x = embeddings_pagoda[,1], y = embeddings_pagoda[,2], color=all_clusters),
+  size=0.3, alpha=0.5)
+
+ggplot() + geom_point(
+  aes(x = embeddings_update_knn_graph[,1], y = embeddings_update_knn_graph[,2], color=good_clusters_knn),
+  size=0.3, alpha=0.5)
+
+ggplot() + geom_point(
+  aes(x = embeddings_corrected_graph_r[,1], y = embeddings_corrected_graph_r[,2], color=good_clusters),
+  size=0.3, alpha=0.5)
+
 ```
 
 
 ```{r}
+
+n_edges_per_vertex <- Matrix::rowSums(igraph::as_adj(update_knn_graph))
+qplot(n_edges_per_vertex, bins=50)
+print(length(n_edges_per_vertex[n_edges_per_vertex == 0]))
+
 ```
 
-### Зона тестирования функциональных возможностей RRRRrrrr...
 ```{r}
-
 
 ring_g <- igraph::make_ring(5)
 star_g <- igraph::make_star(6, mode = "undirected", center = 6)
 plot(star_g)
 plot(ring_g)
-
 union_g <- igraph::union(star_g, ring_g)
-
 plot(union_g)
+igraph::E(union_g)
 
-igraph::as_adj_edge_list(union_g)
+correct_edge <- igraph::E(union_g)[1:8]
+correct_edge
 
-igraph::edge_attr(union_g, 1)
-
-
-```
-```{r}
-
-g <- igraph::make_ring(5)
-igraph::ends(g, igraph::E(g))
-
- igraph::E(g)
- 
-
-```
-```{r}
+plot(igraph::subgraph.edges(union_g, correct_edge))
 
 ```

@@ -54,22 +54,26 @@ UpdateIncorrectMnnGraph <- function(graph, p2.objects, clusters, clusters.name, 
   return(corrected.graph)
 }
 
-RestoreKnnGraph <- function(graph, m) {
-  bad.edges <- GetEdgesForCluster(graph, clusters.vertices, m, decreasing=FALSE)
-  corrected.graph <- igraph::delete.edges(graph, igraph::E(graph)[bad.edges])
+RestoreKnnGraph <- function(graph, k) {
+  lists.of.edges <- lapply(igraph::V(graph), GetKEdgesForVertex, graph = graph, k = k,
+                           decreasing = TRUE)
+  good.edges <- unique(Reduce(union, lists.of.edges))
+  corrected.graph <- igraph::subgraph.edges(graph, igraph::E(graph)[good.edges])
   
   return(corrected.graph)
 }
 
 UpdateKnnGraph <- function(graph, p2.objects, clusters, clusters.name, k, embeding.type=NULL) {
   corrected.graph <- graph
+  print("Union Graphs")
   for (i in 1:length(levels(clusters))) {
     corrected.graph <- igraph::union(corrected.graph, p2.objects[[i]]$graphs$PCA)
     edges.graph <- igraph::E(corrected.graph)
     new.weight <- ifelse(is.na(edges.graph$weight_2), edges.graph$weight_1, edges.graph$weight_2)
     igraph::E(corrected.graph)$weight <- new.weight
   }
-  corrected.graph <- RestoreKnnGraph(corrected.graph, vertices.cluster, k)
+  print("RestoreKnnGraph")
+  corrected.graph <- RestoreKnnGraph(corrected.graph, k)
   
   return(corrected.graph)
 }
