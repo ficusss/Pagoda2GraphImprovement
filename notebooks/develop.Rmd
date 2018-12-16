@@ -139,6 +139,28 @@ print(length(n_edges_per_vertex[n_edges_per_vertex == 0]))
 
 ```{r}
 
+count_edge_change <- CountEdgeChanges(pagoda_data$graphs$PCA, updated_knn_graph)
+
+```
+```{r}
+
+edge_differents <- Map(f = function(a) a[2] - a[1], count_edge_change)
+edge_differents <- Reduce(union, edge_differents)
+
+qplot(edge_differents)
+
+ToPoint <- function(vec, bins = 25) {
+  step <- max(edge_differents) - min(edge_differents)
+  z <- seq(min(edge_differents), max(edge_differents), step)
+  for (curr in seq(min(edge_differents), max(edge_differents), step)) {
+  }
+    
+}
+
+```
+
+```{r}
+
 ring_g <- igraph::make_ring(5)
 star_g <- igraph::make_star(6, mode = "undirected", center = 6)
 plot(star_g)
