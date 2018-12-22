@@ -37,7 +37,7 @@ RestoreKnnGraph <- function(graph, k) {
 }
 
 #' @export
-UpdateNNGraph <- function(graph, p2.objects, clusters, clusters.name, m,
+UpdateNNGraph <- function(graph, p2.objects, clusters, m,
                           graph.type='knn', embeding.type=NULL) {
   corrected.graph <- graph
   print("Union graphs...")

@@ -76,7 +76,7 @@ print(length(n_edges_per_vertex[n_edges_per_vertex == 0]))
 ```{r}
 
 update_knn_graph <- UpdateNNGraph(pagoda_data$graphs$PCA, clusters_pagoda_data,
-                                   all_clusters, clusters_name, 15, graph.type = 'knn')
+                                   all_clusters, 15, graph.type = 'knn')
 
 ```
 
@@ -147,15 +147,7 @@ count_edge_change <- CountEdgeChanges(pagoda_data$graphs$PCA, updated_knn_graph)
 edge_differents <- Map(f = function(a) a[2] - a[1], count_edge_change)
 edge_differents <- Reduce(union, edge_differents)
 
-qplot(edge_differents)
-
-ToPoint <- function(vec, bins = 25) {
-  step <- max(edge_differents) - min(edge_differents)
-  z <- seq(min(edge_differents), max(edge_differents), step)
-  for (curr in seq(min(edge_differents), max(edge_differents), step)) {
-  }
-    
-}
+qplot(edge_differents, bins = 100)
 
 ```
 
@@ -173,5 +165,17 @@ correct_edge <- igraph::E(union_g)[1:8]
 correct_edge
 
 plot(igraph::subgraph.edges(union_g, correct_edge))
+
+
+
+g <- igraph::make_full_graph(5) 
+plot(g)
+# %du% igraph::make_full_graph(5) %du% igraph::make_full_graph(5)
+g <- igraph::add_edges(g, c(1,6, 1,11, 6, 11))
+plot(g)
+wtc <- igraph::cluster_walktrap(g)
+igraph::modularity(wtc)
+igraph::modularity(g, membership(wtc))
+
 
 ```

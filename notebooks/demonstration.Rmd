@@ -117,7 +117,7 @@ print(length(n_edges_per_vertex[n_edges_per_vertex == 0]))
 ```{r}
 
 updated_knn_graph <- UpdateNNGraph(pagoda_data$graphs$PCA, clusters_pagoda_data,
-                                   all_clusters, clusters_name, 15, graph.type = 'knn')
+                                   all_clusters, 15, graph.type = 'knn')
 
 ```
 
@@ -125,7 +125,7 @@ updated_knn_graph <- UpdateNNGraph(pagoda_data$graphs$PCA, clusters_pagoda_data,
 ```{r}
 
 updated_mnn_graph <- UpdateNNGraph(pagoda_data$graphs$PCA, clusters_pagoda_data,
-                                   all_clusters, clusters_name, 15, graph.type = 'mnn')
+                                   all_clusters, 15, graph.type = 'mnn')
 
 ```
 
