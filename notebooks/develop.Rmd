@@ -144,6 +144,21 @@ count_edge_change <- CountEdgeChanges(pagoda_data$graphs$PCA, updated_knn_graph)
 ```
 ```{r}
 
+modularity_info <- GetModularityForGraphs(list(pagoda_data$graphs$PCA, updated_knn_graph,
+                              updated_mnn_graph), c("infomap", "multilevel"))
+
+```
+
+```{r}
+
+EdgeСhangesForGraphs(pagoda_data$graphs$PCA, updated_knn_graph)
+EdgeСhangesForGraphs(pagoda_data$graphs$PCA, updated_mnn_graph)
+EdgeСhangesForGraphs(pagoda_data$graphs$PCA, pagoda_data$graphs$PCA)
+
+```
+
+```{r}
+
 edge_differents <- Map(f = function(a) a[2] - a[1], count_edge_change)
 edge_differents <- Reduce(union, edge_differents)
 

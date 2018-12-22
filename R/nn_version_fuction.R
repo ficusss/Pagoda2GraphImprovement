@@ -37,7 +37,7 @@ RestoreKnnGraph <- function(graph, k) {
 }
 
 #' @export
-UpdateNNGraph <- function(graph, p2.objects, clusters, m,
+UpdateNNGraph <- function(graph, p2.objects, clusters, k,
                           graph.type='knn', embeding.type=NULL) {
   corrected.graph <- graph
   print("Union graphs...")
@@ -51,10 +51,9 @@ UpdateNNGraph <- function(graph, p2.objects, clusters, m,
   if (graph.type == 'knn') {
     print("Restore kNN graph...")
     corrected.graph <- RestoreKnnGraph(corrected.graph, k)
-    
-    } ifelse(graph.type == 'mnn') {
+    } else if(graph.type == 'mnn') {
     print("Restore mNN graph...")
-    corrected.graph <- RestoreMnnGraph(corrected.graph, m)
+    corrected.graph <- RestoreMnnGraph(corrected.graph, k)
   }
   
   
