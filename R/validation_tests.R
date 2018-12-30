@@ -44,7 +44,7 @@ GetModularityForGraphs <- function(graph.list, clustering.type = "infomap") {
 }
 
 #' @export
-EdgeСhangesForGraphs <- function(g1, g2) {
+EdgeChangesForGraphs <- function(g1, g2) {
   incident_vertex <- igraph::ends(g1, igraph::E(g1))
   edges1 <- paste(incident_vertex[, 1], incident_vertex[, 2])
   incident_vertex <- igraph::ends(g2, igraph::E(g2))
@@ -57,7 +57,7 @@ EdgeСhangesForGraphs <- function(g1, g2) {
 }
 
 #' @export
-EdgeСhangesForCluster <- function(g1, g2, cluster.names) {
+EdgeChangesForCluster <- function(g1, g2, cluster.names) {
   edges <- igraph::incident(g1, cluster.names)
   incident_vertex <- igraph::ends(g1, edges)
   edges1 <- paste(incident_vertex[, 1], incident_vertex[, 2])
@@ -74,10 +74,10 @@ EdgeСhangesForCluster <- function(g1, g2, cluster.names) {
 #' @export
 SummaryEdgeChanges <- function(g1, g2, clusters.name) {
   r <- NULL
-  r$all.graph <- EdgeСhangesForGraphs(g1, g2)
+  r$all.graph <- EdgeChangesForGraphs(g1, g2)
   
   for (i in 1:length(clusters.name)) {
-    r[[paste0("cluster", i)]] <- EdgeСhangesForCluster(g1, g2, clusters.name[[i]]$cluster)
+    r[[paste0("cluster", i)]] <- EdgeChangesForCluster(g1, g2, clusters.name[[i]]$cluster)
   }
   
   return(r)

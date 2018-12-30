@@ -1,0 +1,150 @@
+---
+title: "Validation of graph correction"
+output:
+  html_document:
+    toc: true
+  html_notebook: default
+---
+
+## Подключаем требуемые пакеты
+
+```{r, message=FALSE, warning=FALSE}
+library(igraph)
+library(pagoda2)
+library(ggplot2)
+library(magrittr)
+library(Pagoda2GraphImprovement)
+
+theme_set(theme_bw())
+
+set.seed(2018)
+```
+
+## Считываем данные и граф
+
+```{r}
+path_floder <- DataPath("filtered_gene_bc_matrices/GRCh38")
+
+load_matrix <- pagoda2::read.10x.matrices(path_floder)
+load_matrix <- load_matrix[!duplicated(rownames(load_matrix)),]
+pagoda_data <- pagoda2::basicP2proc(load_matrix)
+
+lst <- readRDS(rprojroot::is_r_package$find_file("output/validation.rds"))
+umap_raw <- lst$umap_raw
+umap_corrected <- lst$umap_corrected
+clusters_corrected <- lst$clusters_corrected
+clusters_raw <- lst$clusters_raw
+all_clusters <- lst$all_clusters
+```
+
+## Validation
+
+```{r}
+plot_mtx <- as.matrix(pagoda_data$counts) %>% apply(2, function(v) scales::rescale(rank(v)))
+```
+
+```{r}
+conos::embeddingPlot(umap_raw, groups=all_clusters)
+conos::embeddingPlot(pagoda_data$embeddings$PCA$tSNE, groups=all_clusters)
+```
+
+### Raw
+
+```{r}
+conos::embeddingPlot(pagoda_data$embeddings$PCA$tSNE, groups=clusters_raw, title="Raw t-SNE")
+conos::embeddingPlot(umap_corrected, groups=clusters_raw, title="Corrected")
+```
+
+#### Clusters 8, 10, 11, 16
+
+```{r, fig.width=8, fig.height=5}
+c("CMC1", "GZMH", "TRGC2", "CD8A", "TRAC", "PFN1") %>% 
+  lapply(PlotEmbeddingGeneFraction, pagoda_data$embeddings$PCA$tSNE, plot_mtx) %>% 
+  cowplot::plot_grid(plotlist=., ncol=3)
+```
+
+```{r, fig.width=8, fig.height=5}
+c("CMC1", "GZMH", "TRGC2", "CD8A", "TRAC", "PFN1") %>% 
+  lapply(PlotEmbeddingGeneFraction, umap_corrected, plot_mtx) %>% 
+  cowplot::plot_grid(plotlist=., ncol=3)
+```
+
+On corrected data we still can see some level of separation, but it's much worse.
+
+#### Clusters 5, 13, 15
+
+```{r, fig.width=8, fig.height=8}
+c("FOS", "JUN", "UBC", "DUSP2", "RPS3", "ACTB", "H3F3A", "PFN1", "MALAT1") %>% 
+  lapply(PlotEmbeddingGeneFraction, pagoda_data$embeddings$PCA$tSNE, plot_mtx) %>% 
+  cowplot::plot_grid(plotlist=., ncol=3)
+```
+
+```{r, fig.width=8, fig.height=8}
+c("FOS", "JUN", "UBC", "DUSP2", "RPS3", "ACTB", "H3F3A", "PFN1", "MALAT1") %>% 
+  lapply(PlotEmbeddingGeneFraction, umap_corrected, plot_mtx) %>% 
+  cowplot::plot_grid(plotlist=., ncol=3)
+```
+
+So we have almost the same level of separateon on raw and corrected clusters
+
+#### Clusters 1, 12, 14
+
+```{r, fig.width=12, fig.height=8}
+c("S100A8", "S100A12", "CD14", "MS4A6A", "CD74", "HLA-DPB1", "FCER1A", "RPL15", "FCGR3A", "RPS19", "COTL1", "RHOC") %>% 
+  lapply(PlotEmbeddingGeneFraction, pagoda_data$embeddings$PCA$tSNE, plot_mtx) %>% 
+  cowplot::plot_grid(plotlist=., ncol=4)
+```
+
+```{r, fig.width=12, fig.height=8}
+c("S100A8", "S100A12", "CD14", "MS4A6A", "CD74", "HLA-DPB1", "FCER1A", "RPL15", "FCGR3A", "RPS19", "COTL1", "RHOC") %>% 
+  lapply(PlotEmbeddingGeneFraction, umap_corrected, plot_mtx) %>% 
+  cowplot::plot_grid(plotlist=., ncol=4)
+```
+
+Corrected looks better
+
+### Corrected
+
+```{r}
+conos::embeddingPlot(pagoda_data$embeddings$PCA$tSNE, groups=clusters_corrected, title="Raw t-SNE, new clusters")
+conos::embeddingPlot(umap_corrected, groups=clusters_corrected, title="Corrected, new clusters")
+```
+
+#### Clusters 2, 10, 19-23
+
+```{r, fig.width=12, fig.height=3}
+c("CD52", "FAM26F", "RHOC", "TUBA1B") %>% 
+  lapply(PlotEmbeddingGeneFraction, umap_corrected, plot_mtx) %>% 
+  cowplot::plot_grid(plotlist=., ncol=4)
+```
+
+2: CXCL8, JUND, S100A12, NFKBIA, RPL39, VCAN
+
+10: RPL6, RPL7A, RPL15, RPS17 (not seen in raw data)
+11: CD52, FAM26F, RHOC, TUBA1B
+
+19: CD79B, MS4A1, IGKC
+20: B2M, RNASET2, FOSB, ANXA1, KLF6 (not really seen in raw data)
+21: TRAC, TRBC2, IL32
+23: SDPR, GNG11, PF4, CD9, PPBP
+
+Raw data:
+
+```{r, fig.width=12, fig.height=3}
+c("PF4", "CD9", "PPBP") %>% 
+  lapply(PlotEmbeddingGeneFraction, pagoda_data$embeddings$PCA$tSNE, plot_mtx) %>% 
+  cowplot::plot_grid(plotlist=., ncol=4)
+
+c("CD52", "FAM26F", "RHOC", "TUBA1B") %>% 
+  lapply(PlotEmbeddingGeneFraction, pagoda_data$embeddings$PCA$tSNE, plot_mtx) %>% 
+  cowplot::plot_grid(plotlist=., ncol=4)
+
+c("RNASET2", "FOSB", "ANXA1", "KLF6") %>% 
+  lapply(PlotEmbeddingGeneFraction, pagoda_data$embeddings$PCA$tSNE, plot_mtx) %>% 
+  cowplot::plot_grid(plotlist=., ncol=4)
+
+c("RPL6", "RPL7A", "RPL15", "RPS17") %>% 
+  lapply(PlotEmbeddingGeneFraction, pagoda_data$embeddings$PCA$tSNE, plot_mtx) %>% 
+  cowplot::plot_grid(plotlist=., ncol=4)
+```
+

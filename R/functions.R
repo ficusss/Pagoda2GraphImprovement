@@ -192,3 +192,19 @@ GetBaseClusters <- function(base.pagoda.graph, new.graph, cluster.type) {
   
   return(as.factor(base.clusters))
 }
+
+#' @export
+PlotEmbeddingGeneFraction <- function(gene, embedding, plot.mtx, title.x=0.04, title.y=0.99, 
+                                      size=0.5, alpha=0.5) {
+  suppressMessages(
+    gg <- conos::embeddingPlot(embedding, colors=plot.mtx[,gene], size=size, alpha=alpha) + 
+      ggplot2::scale_color_distiller(palette = "Spectral") +
+      ggplot2::theme(plot.margin = ggplot2::margin(), axis.title.x = ggplot2::element_blank(), 
+                     axis.title.y = ggplot2::element_blank())
+  )
+  
+  gg <- cowplot::ggdraw(gg) + 
+    cowplot::draw_label(gene, x = title.x, y = title.y, hjust = title.x, vjust = title.y)
+  
+  return(gg)
+}

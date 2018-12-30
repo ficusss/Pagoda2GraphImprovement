@@ -16,8 +16,8 @@ GetAllWithoutKEdgesForVertex <- function(graph, vertex, k, decreasing=TRUE) {
 
 RestoreMnnGraph <- function(graph, m) {
   print("--- Get edges for remove...")
-  lists.of.edges <- pblapply(igraph::V(graph), GetAllWithoutKEdgesForVertex, graph = graph, k = m,
-                           decreasing = FALSE)
+  lists.of.edges <- pbapply::pblapply(igraph::V(graph), GetAllWithoutKEdgesForVertex, graph = graph, 
+                                      k = m, decreasing = FALSE)
   bad.edges <- unique(Reduce(union, lists.of.edges))
   print("--- Remove edges...")
   corrected.graph <- igraph::delete.edges(graph, igraph::E(graph)[bad.edges])
@@ -27,8 +27,8 @@ RestoreMnnGraph <- function(graph, m) {
 
 RestoreKnnGraph <- function(graph, k) {
   print("--- Get edges for saving...")
-  lists.of.edges <- pblapply(igraph::V(graph), GetKEdgesForVertex, graph = graph, k = k,
-                           decreasing = TRUE)
+  lists.of.edges <- pbapply::pblapply(igraph::V(graph), GetKEdgesForVertex, graph = graph, 
+                                      k = k, decreasing = TRUE)
   good.edges <- unique(Reduce(union, lists.of.edges))
   print("--- Remove edges...")
   corrected.graph <- igraph::subgraph.edges(graph, igraph::E(graph)[good.edges])
@@ -58,4 +58,26 @@ UpdateNNGraph <- function(graph, p2.objects, clusters, k,
   
   
   return(corrected.graph)
+}
+
+#' @export
+KnnGraphToAdjList <- function(graph) {
+  edge.list.fact <- igraph::as_edgelist(graph) %>% conos:::as_factor()
+  edge.list <- matrix(edge.list.fact$values, ncol = 2)
+  n.nodes <- length(igraph::V(graph))
+  
+  adj.list <- mapply(c, conos:::splitVectorByNodes(edge.list[, 1], edge.list[, 2], n.nodes), 
+                     conos:::splitVectorByNodes(edge.list[, 2], edge.list[, 1], n.nodes)) %>% 
+    lapply(unlist) %>% lapply(`-`, 1)
+  
+  dists <- mapply(c, conos:::splitVectorByNodes(igraph::E(graph)$weight, edge.list[, 2], n.nodes), 
+                  conos:::splitVectorByNodes(igraph::E(graph)$weight, edge.list[, 1], n.nodes)) %>% 
+    lapply(unlist) %>% lapply(function(x) 1 - x) %>% setNames(edge.list.fact$levels)
+  
+  edge.orders <- lapply(dists, order)
+  dists <- lapply(dists, sort)
+  adj.list <- mapply(function(e, o) e[o], adj.list, edge.orders) %>% 
+    setNames(edge.list.fact$levels)
+  
+  return(list(idx=adj.list, dist=dists))
 }
