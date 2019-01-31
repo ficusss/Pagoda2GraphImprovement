@@ -37,6 +37,7 @@ pagoda_data <- pagoda2::basicP2proc(load_matrix)
 all_clusters_multilevel <- pagoda_data$clusters$PCA$multilevel
 all_clusters_infomap <- pagoda_data$clusters$PCA$infomap
 
+conos::embeddingPlot(pagoda_data$embeddings$PCA$tSNE)
 
 conos::embeddingPlot(pagoda_data$embeddings$PCA$tSNE, groups=all_clusters_multilevel)
 conos::embeddingPlot(pagoda_data$embeddings$PCA$tSNE, groups=all_clusters_infomap)
