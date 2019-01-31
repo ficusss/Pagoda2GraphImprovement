@@ -1,6 +1,9 @@
 ---
 title: "R Notebook"
-output: html_notebook
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
 ---
 
 ###Подключаем требуемые пакеты
@@ -10,7 +13,7 @@ output: html_notebook
 library(igraph)
 library(pagoda2)
 library(ggplot2)
-# library(magrittr)
+library(magrittr)
 library(pbapply)
 
 theme_set(theme_bw())
@@ -22,7 +25,6 @@ set.seed(2018)
 ### Считываем данные и строим граф
 
 ```{r}
-
 path_floder <- DataPath("filtered_gene_bc_matrices/GRCh38")
 
 load_matrix <- pagoda2::read.10x.matrices(path_floder)
@@ -30,167 +32,169 @@ load_matrix <- load_matrix[!duplicated(rownames(load_matrix)),]
 pagoda_data <- pagoda2::basicP2proc(load_matrix)
 
 ```
-
-### Выделяем вершины в кластерах и окрестностях кластеров, после чего строим граф для окрестности
-
 ```{r}
 
-all_clusters <- pagoda_data$clusters$PCA$multilevel
-clusters_name <- lapply(levels(all_clusters), ClusterNeighborhood, all_clusters, pagoda_data)
+all_clusters_multilevel <- pagoda_data$clusters$PCA$multilevel
+all_clusters_infomap <- pagoda_data$clusters$PCA$infomap
 
-clusters_pagoda_data <- lapply(1:length(levels(all_clusters)), function(id) 
-  GetPagoda(load_matrix[,clusters_name[[id]]$expand_cluster], embeding.type = NULL))
+
+conos::embeddingPlot(pagoda_data$embeddings$PCA$tSNE, groups=all_clusters_multilevel)
+conos::embeddingPlot(pagoda_data$embeddings$PCA$tSNE, groups=all_clusters_infomap)
+
+conos::embeddingPlot(pagoda_data$embeddings$PCA$largeVis, groups=all_clusters_multilevel)
+conos::embeddingPlot(pagoda_data$embeddings$PCA$largeVis, groups=all_clusters_infomap)
 
 ```
 
-### Находим степень связности кластера с остальным графом
+### Уточняем по кластеризации multilevel
 
 ```{r}
 
-vertex_connectivity <- lapply(clusters_name, GetDegreeConnectivity, graph=pagoda_data$graphs$PCA)
+update_pagoda_data_multilevel_1 <- UpdatePagoda(primary.data = load_matrix, pagoda.obj = pagoda_data,
+                                                clustering.type='multilevel', count.iter = 1)
 
-```
-
-### Корректировка графа 
-
-```{r}
-
-corrected_graph_r <- UpdateGraph(all_clusters, clusters_pagoda_data,
-                               pagoda_data$graphs$PCA, clusters.name = clusters_name,
-                               vertex.connectivity = vertex_connectivity, deleted = FALSE)
+update_pagoda_data_multilevel_1$getKnnClusters(method = igraph::infomap.community,
+                                               type = "PCA", name = "infomap")
 
 ```
 ```{r}
 
-n_edges_per_vertex <- Matrix::rowSums(igraph::as_adj(corrected_graph_r$graphs$PCA))
-qplot(n_edges_per_vertex, bins=50)
-print(length(n_edges_per_vertex[n_edges_per_vertex == 0]))
+conos::embeddingPlot(update_pagoda_data_multilevel_1$embeddings$PCA$tSNE,
+                     groups=update_pagoda_data_multilevel_1$clusters$PCA$multilevel)
+conos::embeddingPlot(update_pagoda_data_multilevel_1$embeddings$PCA$tSNE,
+                     groups=update_pagoda_data_multilevel_1$clusters$PCA$infomap)
 
 ```
 
 ```{r}
 
-```
+update_pagoda_data_multilevel_3 <- UpdatePagoda(primary.data = load_matrix,
+                                                pagoda.obj = update_pagoda_data_multilevel_1,
+                                                clustering.type='multilevel', count.iter = 2)
 
-
-```{r}
-
-update_knn_graph <- UpdateNNGraph(pagoda_data$graphs$PCA, clusters_pagoda_data,
-                                   all_clusters, 15, graph.type = 'knn')
-
-```
-
-
-```{r}
-
-GetBaseClusters_d <- function(base.pagoda.graph, new.graph, cluster.type) {
-  l1 <- base.pagoda.graph$clusters$PCA[[1]]
-  l2 <- new.graph[[1]]
-  assertthat::are_equal(l1, l2)
-  
-  z <- base.pagoda.graph$clusters$PCA[[cluster.type]]
-  names(z) <- names(base.pagoda.graph$clusters$PCA[[cluster.type]])
-  
-  base.clusters <- NA
-  for (i in 1:length(z)) {
-    curr.cell <- names(new.graph[[i]])
-    base.clusters[i] <- z[curr.cell]
-  }
-  
-  return(as.factor(base.clusters))
-}
-
-good_clusters_knn <- GetBaseClusters_d(pagoda_data, update_knn_graph, "multilevel")
-good_clusters <- GetBaseClusters(pagoda_data, corrected_graph_r, "multilevel")
-
-embeddings_pagoda <- EmbedGraph(pagoda_data$graphs$PCA, n.cores=2,
-                                M=1, gamma=1.1, alpha=0.05, sgd_batches=1e8)
-embeddings_corrected_graph_r <- EmbedGraph(corrected_graph_r$graphs$PCA, n.cores=2,
-                                         M=1, gamma=1.1, alpha=0.05, sgd_batches=1e8)
-embeddings_update_knn_graph <- EmbedGraph(update_knn_graph, n.cores=2,
-                                         M=1, gamma=1.1, alpha=0.05, sgd_batches=1e8)
-
-ggplot() + geom_point(
-  aes(x = embeddings_pagoda[,1], y = embeddings_pagoda[,2], color=all_clusters),
-  size=0.3, alpha=0.5)
-
-ggplot() + geom_point(
-  aes(x = embeddings_update_knn_graph[,1], y = embeddings_update_knn_graph[,2], color=good_clusters_knn),
-  size=0.3, alpha=0.5)
-
-ggplot() + geom_point(
-  aes(x = embeddings_corrected_graph_r[,1], y = embeddings_corrected_graph_r[,2], color=good_clusters),
-  size=0.3, alpha=0.5)
+update_pagoda_data_multilevel_3$getKnnClusters(method = igraph::infomap.community,
+                                               type = "PCA", name = "infomap")
 
 ```
-
-
 ```{r}
 
-n_edges_per_vertex <- Matrix::rowSums(igraph::as_adj(updated_knn_graph))
-qplot(n_edges_per_vertex, bins=50)
-print(length(n_edges_per_vertex[n_edges_per_vertex == 0]))
-
-n_edges_per_vertex <- Matrix::rowSums(igraph::as_adj(updated_mnn_graph))
-qplot(n_edges_per_vertex, bins=50)
-print(length(n_edges_per_vertex[n_edges_per_vertex == 0]))
+conos::embeddingPlot(update_pagoda_data_multilevel_3$embeddings$PCA$tSNE,
+                     groups=update_pagoda_data_multilevel_3$clusters$PCA$multilevel)
+conos::embeddingPlot(update_pagoda_data_multilevel_3$embeddings$PCA$tSNE,
+                     groups=update_pagoda_data_multilevel_3$clusters$PCA$infomap)
 
 ```
 
 ```{r}
 
-count_edge_change <- CountEdgeChanges(pagoda_data$graphs$PCA, updated_knn_graph)
+update_pagoda_data_multilevel_5 <- UpdatePagoda(primary.data = load_matrix,
+                                                pagoda.obj = update_pagoda_data_multilevel_3,
+                                                clustering.type='multilevel', count.iter = 2)
+
+update_pagoda_data_multilevel_5$getKnnClusters(method = igraph::infomap.community,
+                                               type = "PCA", name = "infomap")
 
 ```
 ```{r}
 
-modularity_info <- GetModularityForGraphs(list(pagoda_data$graphs$PCA, updated_knn_graph,
-                              updated_mnn_graph), c("infomap", "multilevel"))
-
-```
-
-```{r}
-
-EdgeСhangesForGraphs(pagoda_data$graphs$PCA, updated_knn_graph)
-EdgeСhangesForGraphs(pagoda_data$graphs$PCA, updated_mnn_graph)
-EdgeСhangesForGraphs(pagoda_data$graphs$PCA, pagoda_data$graphs$PCA)
-
-```
-
-```{r}
-
-edge_differents <- Map(f = function(a) a[2] - a[1], count_edge_change)
-edge_differents <- Reduce(union, edge_differents)
-
-qplot(edge_differents, bins = 100)
+conos::embeddingPlot(update_pagoda_data_multilevel_5$embeddings$PCA$tSNE,
+                     groups=update_pagoda_data_multilevel_5$clusters$PCA$multilevel)
+conos::embeddingPlot(update_pagoda_data_multilevel_5$embeddings$PCA$tSNE,
+                     groups=update_pagoda_data_multilevel_5$clusters$PCA$infomap)
 
 ```
 
 ```{r}
 
-ring_g <- igraph::make_ring(5)
-star_g <- igraph::make_star(6, mode = "undirected", center = 6)
-plot(star_g)
-plot(ring_g)
-union_g <- igraph::union(star_g, ring_g)
-plot(union_g)
-igraph::E(union_g)
+conos::embeddingPlot(update_pagoda_data_multilevel_5$embeddings$PCA$tSNE)
+conos::embeddingPlot(update_pagoda_data_multilevel_5$embeddings$PCA$tSNE,
+                     groups=all_clusters_infomap)
 
-correct_edge <- igraph::E(union_g)[1:8]
-correct_edge
+```
 
-plot(igraph::subgraph.edges(union_g, correct_edge))
+### Уточняем по кластеризации infomap
 
+### Строим заново исходный граф
+```{r}
 
+pagoda_data_second_var <- pagoda2::basicP2proc(load_matrix)
 
-g <- igraph::make_full_graph(5) 
-plot(g)
-# %du% igraph::make_full_graph(5) %du% igraph::make_full_graph(5)
-g <- igraph::add_edges(g, c(1,6, 1,11, 6, 11))
-plot(g)
-wtc <- igraph::cluster_walktrap(g)
-igraph::modularity(wtc)
-igraph::modularity(g, membership(wtc))
+```
+```{r}
 
+all_clusters_multilevel <- pagoda_data_second_var$clusters$PCA$multilevel
+all_clusters_infomap <- pagoda_data_second_var$clusters$PCA$infomap
+
+conos::embeddingPlot(pagoda_data_second_var$embeddings$PCA$tSNE)
+
+conos::embeddingPlot(pagoda_data_second_var$embeddings$PCA$tSNE, groups=all_clusters_multilevel)
+conos::embeddingPlot(pagoda_data_second_var$embeddings$PCA$tSNE, groups=all_clusters_infomap)
+
+conos::embeddingPlot(pagoda_data_second_var$embeddings$PCA$largeVis, groups=all_clusters_multilevel)
+conos::embeddingPlot(pagoda_data_second_var$embeddings$PCA$largeVis, groups=all_clusters_infomap)
+
+```
+
+```{r}
+
+update_pagoda_data_infomap_1 <- UpdatePagoda(primary.data = load_matrix,
+                                             pagoda.obj = pagoda_data_second_var,
+                                             clustering.type='infomap', count.iter = 1)
+
+update_pagoda_data_infomap_1$getKnnClusters(method = igraph::multilevel.community,
+                                               type = "PCA", name = "multilevel")
+
+```
+```{r}
+
+conos::embeddingPlot(update_pagoda_data_infomap_1$embeddings$PCA$tSNE,
+                     groups=update_pagoda_data_infomap_1$clusters$PCA$multilevel)
+conos::embeddingPlot(update_pagoda_data_infomap_1$embeddings$PCA$tSNE,
+                     groups=update_pagoda_data_infomap_1$clusters$PCA$infomap)
+
+```
+
+```{r}
+
+update_pagoda_data_infomap_3 <- UpdatePagoda(primary.data = load_matrix,
+                                             pagoda.obj = update_pagoda_data_infomap_1,
+                                             clustering.type='infomap', count.iter = 2)
+
+update_pagoda_data_infomap_3$getKnnClusters(method = igraph::multilevel.community,
+                                               type = "PCA", name = "multilevel")
+
+```
+```{r}
+
+conos::embeddingPlot(update_pagoda_data_infomap_3$embeddings$PCA$tSNE,
+                     groups=update_pagoda_data_infomap_3$clusters$PCA$multilevel)
+conos::embeddingPlot(update_pagoda_data_infomap_3$embeddings$PCA$tSNE,
+                     groups=update_pagoda_data_infomap_3$clusters$PCA$infomap)
+
+```
+
+```{r}
+
+update_pagoda_data_infomap_5 <- UpdatePagoda(primary.data = load_matrix,
+                                             pagoda.obj = update_pagoda_data_infomap_3,
+                                             clustering.type='infomap', count.iter = 2)
+
+update_pagoda_data_infomap_5$getKnnClusters(method = igraph::multilevel.community,
+                                               type = "PCA", name = "multilevel")
+
+```
+```{r}
+
+conos::embeddingPlot(update_pagoda_data_infomap_5$embeddings$PCA$tSNE,
+                     groups=update_pagoda_data_infomap_5$clusters$PCA$multilevel)
+conos::embeddingPlot(update_pagoda_data_infomap_5$embeddings$PCA$tSNE,
+                     groups=update_pagoda_data_infomap_5$clusters$PCA$infomap)
+
+```
+
+```{r}
+
+conos::embeddingPlot(update_pagoda_data_infomap_5$embeddings$PCA$tSNE)
+conos::embeddingPlot(update_pagoda_data_infomap_5$embeddings$PCA$tSNE, groups=all_clusters_infomap)
 
 ```
