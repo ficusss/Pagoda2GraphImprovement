@@ -41,17 +41,17 @@ GetPagoda <- function (cm, n.cores = 4, clustering.type = "infomap", embeding.ty
 
 #' @export
 ClusterNeighborhood <- function(index, clusters, p2, order=1, mindist=0) {
-  tmp_list <- list()
+  tmp.list <- list()
   # выбираем кластер
   cluster <- names(clusters[clusters==index])
 
   # составляем список из всех соседей для каждой вершины кластера
-  tmp_list <- unlist(igraph::neighborhood(p2$graphs$PCA, nodes = cluster, order=order, mindist=mindist))
+  tmp.list <- unlist(igraph::neighborhood(p2$graphs$PCA, nodes = cluster, order=order, mindist=mindist))
 
   # удаляем повторяющиеся вершины
-  tmp_list <- names(tmp_list[!duplicated(tmp_list)])
+  tmp.list <- names(tmp.list[!duplicated(tmp.list)])
   
-  list(cluster=cluster, expand_cluster=tmp_list, add_vertex=tmp_list[!(tmp_list %in% cluster)])
+  list(cluster=cluster, expand_cluster=tmp.list, add_vertex=tmp.list[!(tmp.list %in% cluster)])
 }
 
 #' @export
@@ -207,4 +207,41 @@ PlotEmbeddingGeneFraction <- function(gene, embedding, plot.mtx, title.x=0.04, t
     cowplot::draw_label(gene, x = title.x, y = title.y, hjust = title.x, vjust = title.y)
   
   return(gg)
+}
+
+#' @export
+UpdatePagoda <- function(primary.data, pagoda.obj, clustering.type='multilevel', k=30, count.iter=1,
+                         improvement.algorithm='knn', embeding.type = "tSNE", tsne.iter.num = 1000) {
+  r <- pagoda.obj
+  for (iter in 1:count.iter) {
+    clusters <- r$clusters$PCA[[clustering.type]]
+    clusters.name <- lapply(levels(clusters), ClusterNeighborhood, clusters, r)
+    
+    # improvement clusters
+    pagoda.for.clusters <- lapply(1:length(levels(clusters)), function(id) 
+      GetPagoda(primary.data[,clusters.name[[id]]$expand_cluster], embeding.type = NULL))
+    
+    # update (improvement) graph
+    r$graphs$PCA <- UpdateNNGraph(r$graphs$PCA, pagoda.for.clusters, clusters,
+                               k, graph.type=improvement.algorithm)
+    
+    # update some fields for pagoda object
+    if (clustering.type == "infomap") {
+      r$getKnnClusters(method = igraph::infomap.community, type = "PCA", name = "infomap")
+    } else if (clustering.type == "multilevel") {
+      r$getKnnClusters(method = igraph::multilevel.community, type = "PCA", name = "multilevel")
+    } else stop("Unknown clustering  type")
+    
+    if (iter == count.iter) {
+      if ("largeVis" %in% embeding.type) {
+        r$getEmbedding(type = "PCA", embeddingType = "largeVis")
+      }
+      if ("tSNE" %in% embeding.type) {
+        r$getEmbedding(type = "PCA", perplexity = 30, embeddingType = "tSNE", 
+                       max_iter = tsne.iter.num)
+      }
+    }
+  }
+  
+  return(r)
 }
