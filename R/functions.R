@@ -12,14 +12,14 @@ PlotPagoda <- function(data, embedding.name, cluster.name=NULL, size=0.3, alpha=
 #' @export
 GetPagoda <- function (cm, n.cores = 4, clustering.type = "infomap", embeding.type = "tSNE", 
                        tsne.iter.num = 1000, verbose = TRUE, n.pcs = 100, distance = "cosine", 
-                       trim = 5, n.odgenes = 1000,  ...) 
+                       trim = 5, n.odgenes = 1000, k = 30, ...) 
 {
   r <- pagoda2::Pagoda2$new(cm, modelType = "plain", trim = trim, 
                             n.cores = n.cores, verbose = verbose, ...)
   r$adjustVariance(plot = F, do.par = F, gam.k = 10, verbose = verbose)
   r$calculatePcaReduction(nPcs = n.pcs, n.odgenes = n.odgenes, maxit = 1000)
   
-  r$makeKnnGraph(k = 30, type = "PCA", center = T, distance = "cosine", 
+  r$makeKnnGraph(k = k, type = "PCA", center = T, distance = "cosine", 
                  weight.type = "none", verbose = verbose)
   if (clustering.type == "infomap") {
     r$getKnnClusters(method = igraph::infomap.community, type = "PCA", name = "infomap")
@@ -210,20 +210,21 @@ PlotEmbeddingGeneFraction <- function(gene, embedding, plot.mtx, title.x=0.04, t
 }
 
 #' @export
-UpdatePagoda <- function(primary.data, pagoda.obj, clustering.type='multilevel', k=30, count.iter=1,
+UpdatePagoda <- function(primary.data, pagoda.obj, clustering.type='multilevel', k=30,
                          improvement.algorithm='knn', embeding.type = "tSNE", tsne.iter.num = 1000) {
-  r <- pagoda.obj
-  for (iter in 1:count.iter) {
+  r <- pagoda.obj$copy()
+  for (curr.k in k) {
     clusters <- r$clusters$PCA[[clustering.type]]
     clusters.name <- lapply(levels(clusters), ClusterNeighborhood, clusters, r)
     
     # improvement clusters
     pagoda.for.clusters <- lapply(1:length(levels(clusters)), function(id) 
-      GetPagoda(primary.data[,clusters.name[[id]]$expand_cluster], embeding.type = NULL))
+      GetPagoda(primary.data[,clusters.name[[id]]$expand_cluster], embeding.type = NULL, k = curr.k, 
+                n.pcs = max(round(length(clusters.name[[id]]$expand_cluster)/40), 5) )) # optimal count principal components
     
     # update (improvement) graph
     r$graphs$PCA <- UpdateNNGraph(r$graphs$PCA, pagoda.for.clusters, clusters,
-                               k, graph.type=improvement.algorithm)
+                                  curr.k, graph.type=improvement.algorithm)
     
     # update some fields for pagoda object
     if (clustering.type == "infomap") {
@@ -232,7 +233,7 @@ UpdatePagoda <- function(primary.data, pagoda.obj, clustering.type='multilevel',
       r$getKnnClusters(method = igraph::multilevel.community, type = "PCA", name = "multilevel")
     } else stop("Unknown clustering  type")
     
-    if (iter == count.iter) {
+    if (curr.k == tail(k, 1)) {
       if ("largeVis" %in% embeding.type) {
         r$getEmbedding(type = "PCA", embeddingType = "largeVis")
       }
