@@ -211,20 +211,20 @@ PlotEmbeddingGeneFraction <- function(gene, embedding, plot.mtx, title.x=0.04, t
 
 #' @export
 UpdatePagoda <- function(primary.data, pagoda.obj, clustering.type='multilevel', k=30,
-                         improvement.algorithm='knn', embeding.type = "tSNE", tsne.iter.num = 1000) {
+                         improvement.algorithm='knn', embeding.type='tSNE', tsne.iter.num=1000, n.cores=4) {
   r <- pagoda.obj$copy()
   for (curr.k in k) {
     clusters <- r$clusters$PCA[[clustering.type]]
-    clusters.name <- lapply(levels(clusters), ClusterNeighborhood, clusters, r)
+    clusters.name <- pbapply::pblapply(levels(clusters), ClusterNeighborhood, clusters, r, cl = n.cores)
     
     # improvement clusters
     pagoda.for.clusters <- lapply(1:length(levels(clusters)), function(id) 
-      GetPagoda(primary.data[,clusters.name[[id]]$expand_cluster], embeding.type = NULL, k = curr.k, 
-                n.pcs = max(round(length(clusters.name[[id]]$expand_cluster)/40), 5) )) # optimal count principal components
+      GetPagoda(primary.data[,clusters.name[[id]]$expand_cluster], embeding.type = NULL, k = 2 * curr.k,
+                n.cores = n.cores, n.pcs = max(round(length(clusters.name[[id]]$expand_cluster)/40), 10) )) # optimal count principal components
     
     # update (improvement) graph
     r$graphs$PCA <- UpdateNNGraph(r$graphs$PCA, pagoda.for.clusters, clusters,
-                                  curr.k, graph.type=improvement.algorithm)
+                                  curr.k, graph.type = improvement.algorithm, n.cores = n.cores)
     
     # update some fields for pagoda object
     if (clustering.type == "infomap") {

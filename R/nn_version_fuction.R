@@ -14,10 +14,11 @@ GetAllWithoutKEdgesForVertex <- function(graph, vertex, k, decreasing=TRUE) {
   return(k.edges)
 }
 
-RestoreMnnGraph <- function(graph, m) {
+RestoreMnnGraph <- function(graph, m,  n.cores) {
   print("--- Get edges for remove...")
   lists.of.edges <- pbapply::pblapply(igraph::V(graph), GetAllWithoutKEdgesForVertex, graph = graph, 
-                                      k = m, decreasing = FALSE)
+                                      k = m, decreasing = FALSE, cl = n.cores)
+  print("--- Get unique...")
   bad.edges <- unique(Reduce(union, lists.of.edges))
   print("--- Remove edges...")
   corrected.graph <- igraph::delete.edges(graph, igraph::E(graph)[bad.edges])
@@ -25,10 +26,11 @@ RestoreMnnGraph <- function(graph, m) {
   return(corrected.graph)
 }
 
-RestoreKnnGraph <- function(graph, k) {
+RestoreKnnGraph <- function(graph, k, n.cores) {
   print("--- Get edges for saving...")
   lists.of.edges <- pbapply::pblapply(igraph::V(graph), GetKEdgesForVertex, graph = graph, 
-                                      k = k, decreasing = TRUE)
+                                      k = k, decreasing = TRUE, cl = n.cores)
+  print("--- Get unique...")
   good.edges <- unique(Reduce(union, lists.of.edges))
   print("--- Remove edges...")
   corrected.graph <- igraph::subgraph.edges(graph, igraph::E(graph)[good.edges])
@@ -38,7 +40,7 @@ RestoreKnnGraph <- function(graph, k) {
 
 #' @export
 UpdateNNGraph <- function(graph, p2.objects, clusters, k,
-                          graph.type='knn', embeding.type=NULL) {
+                          graph.type='knn', embeding.type=NULL, n.cores=2) {
   corrected.graph <- graph
   print("Union graphs...")
   for (i in 1:length(levels(clusters))) {
@@ -50,10 +52,10 @@ UpdateNNGraph <- function(graph, p2.objects, clusters, k,
   }
   if (graph.type == 'knn') {
     print("Restore kNN graph...")
-    corrected.graph <- RestoreKnnGraph(corrected.graph, k)
+    corrected.graph <- RestoreKnnGraph(corrected.graph, k, n.cores = n.cores)
     } else if(graph.type == 'mnn') {
     print("Restore mNN graph...")
-    corrected.graph <- RestoreMnnGraph(corrected.graph, k)
+    corrected.graph <- RestoreMnnGraph(corrected.graph, k, n.cores = n.cores)
   }
   
   
