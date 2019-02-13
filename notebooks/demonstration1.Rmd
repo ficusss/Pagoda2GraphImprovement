@@ -34,78 +34,84 @@ load_matrix <- load_matrix[!duplicated(rownames(load_matrix)),]
 ```
 ```{r}
 
-pagoda_data <- pagoda2::basicP2proc(load_matrix, n.cores=10)
+p2 <- pagoda2::basicP2proc(load_matrix, n.cores=10)
 
 ```
-### Изначальный граф
-```{r}
 
-all_clusters_multilevel <- pagoda_data$clusters$PCA$multilevel
-all_clusters_infomap <- pagoda_data$clusters$PCA$infomap
-
-```
-```{r}
-
-#изначальный граф без разметки
-conos::embeddingPlot(pagoda_data$embeddings$PCA$tSNE)
-
-#изначальный граф с разметкой multilevel
-conos::embeddingPlot(pagoda_data$embeddings$PCA$tSNE, groups=all_clusters_multilevel)
-
-#изначальный граф с разметкой infomap
-conos::embeddingPlot(pagoda_data$embeddings$PCA$tSNE, groups=all_clusters_infomap)
-
-```
-### Уточнение произведенное по кластеризации infomap
-```{r}
-
-update_pagoda_data_infomap <- UpdatePagoda(primary.data = load_matrix, pagoda.obj = pagoda_data,
-                                           clustering.type='infomap', k= c(30, 30, 30), n.cores=20)
-
-```
-```{r}
-
-update_pagoda_data_infomap$getEmbedding(type = "PCA", perplexity = 30, embeddingType = "tSNE",
-                                        max_iter = 1000)
-
-```
-```{r}
-
-# уточненный граф без разметки
-conos::embeddingPlot(update_pagoda_data_infomap$embeddings$PCA$tSNE)
-
-# уточненный граф с новой разметкой
-conos::embeddingPlot(update_pagoda_data_infomap$embeddings$PCA$tSNE,
-                     groups=update_pagoda_data_infomap$clusters$PCA$infomap)
-
-# уточненный граф с изначальной разметкой
-conos::embeddingPlot(update_pagoda_data_infomap$embeddings$PCA$tSNE, groups=all_clusters_infomap)
-
-```
 ### Уточнение произведенное по кластеризации multilevel
 ```{r}
 
-update_pagoda_data_multilevel <- UpdatePagoda(primary.data = load_matrix, pagoda.obj = pagoda_data,
-                                   clustering.type='multilevel', k=c(25, 20, 15), n.cores=20)
+p2up <- UpdatePagoda(primary.data = load_matrix, pagoda.obj = p2, clustering.type = 'multilevel',
+                      k = c(30, 30, 30, 30, 30), n.cores = 25, embeding.type = 'largeVis')
 
 ```
 ```{r}
 
-update_pagoda_data_multilevel$getKnnClusters(method = igraph::infomap.community,
-                                             type = "PCA", name = "infomap")
+p2up$getKnnClusters(method = igraph::infomap.community, type = "PCA", name = "infomap")
+
+```
+
+### Validation
+
+```{r}
+
+conos::embeddingPlot(p2$embeddings$PCA$tSNE, groups=p2$clusters$PCA$multilevel)
+conos::embeddingPlot(p2$embeddings$PCA$tSNE, groups=p2$clusters$PCA$infomap)
+conos::embeddingPlot(p2$embeddings$PCA$tSNE, groups=p2up$clusters$PCA$infomap)
+conos::embeddingPlot(p2$embeddings$PCA$tSNE, groups=p2up$clusters$PCA$multilevel)
+
+```
+
+```{r}
+
+
+conos::embeddingPlot(p2$embeddings$PCA$largeVis, groups=p2$clusters$PCA$infomap)
+conos::embeddingPlot(p2up$embeddings$PCA$largeVis,
+                     groups=p2$clusters$PCA$infomap)
+
+conos::embeddingPlot(p2$embeddings$PCA$largeVis,
+                     groups=p2up$clusters$PCA$infomap)
+conos::embeddingPlot(p2up$embeddings$PCA$largeVis,
+                     groups=p2up$clusters$PCA$infomap)
+
+
+```
+
+```{r}
+
+change_edge <- CountEdgeChanges(p2$graphs$PCA, p2up$graphs$PCA, 20)
 
 ```
 ```{r}
 
-# уточненный граф без разметки
-conos::embeddingPlot(update_pagoda_data_multilevel$embeddings$PCA$tSNE)
+count_change_edge <- unlist(lapply(1:4340, function(i) return(change_edge[[i]][[4]])))
+names_ <- unlist(lapply(1:4340, function(i) return(change_edge[[i]][[1]])))
 
-# уточненный граф с новой разметкой
-conos::embeddingPlot(update_pagoda_data_multilevel$embeddings$PCA$tSNE,
-                     groups=update_pagoda_data_multilevel$clusters$PCA$infomap)
+count_change_edge <- as.matrix(x=count_change_edge)
+names(count_change_edge) <- names_
 
-# уточненный граф с изначальной разметкой
-conos::embeddingPlot(update_pagoda_data_multilevel$embeddings$PCA$tSNE, groups=all_clusters_infomap)
+print(sum(count_change_edge > 0))
+print(sum(count_change_edge < 0))
 
 ```
+```{r}
 
+plot(count_change_edge, panel.last=grid(nx=22, col='red'))
+
+```
+```{r}
+
+palitre <- scales::rescale(count_change_edge[count_change_edge > -80 & count_change_edge< 80],
+                           to=c(-0.5, 0.5))
+
+```
+```{r}
+suppressMessages(
+  conos::embeddingPlot(p2$embeddings$PCA$tSNE, colors=palitre, size=0.5, alpha=0.5) + 
+        scale_fill_distiller(palette = "Spectral")
+)
+```
+```{r}
+
+
+```

@@ -3,15 +3,15 @@ CountEdgeChangesForVertex <- function(g1, g2, vertex) {
   c1 <- sum(g1[vertex] > 0)
   c2 <- sum(g2[vertex] > 0)
   
-  return(list(vertex, c1, c2))
+  return(list(vertex, c1, c2, c2 - c1))
 }
 
 #' @export
-CountEdgeChanges <- function(g1, g2) {
+CountEdgeChanges <- function(g1, g2, n.cores=1) {
   vertices <- igraph::V(g1)
   assertthat::are_equal(vertices, igraph::V(g2))
   
-  return(pbapply::pblapply(names(vertices), CountEdgeChangesForVertex, g1 = g1, g2 = g2))
+  return(pbapply::pblapply(names(vertices), CountEdgeChangesForVertex, g1 = g1, g2 = g2,  cl = n.cores))
 }
 
 #' @export

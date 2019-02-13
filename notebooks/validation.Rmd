@@ -28,8 +28,9 @@ path_floder <- DataPath("filtered_gene_bc_matrices/GRCh38")
 load_matrix <- pagoda2::read.10x.matrices(path_floder)
 load_matrix <- load_matrix[!duplicated(rownames(load_matrix)),]
 pagoda_data <- pagoda2::basicP2proc(load_matrix)
-
-lst <- readRDS(rprojroot::is_r_package$find_file("output/validation.rds"))
+```
+```{r}
+lst <- readRDS(rprojroot::is_r_package$find_file("data/validation.rds"))
 umap_raw <- lst$umap_raw
 umap_corrected <- lst$umap_corrected
 clusters_corrected <- lst$clusters_corrected
